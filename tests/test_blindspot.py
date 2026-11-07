@@ -408,3 +408,124 @@ def test_cost_estimate_matches_published_rates():
     cached = cost_usd("muse-spark-1.3", 1_000_000, 0, cached_tokens=1_000_000)
     assert abs(cached - 0.15) < 1e-9
     assert cost_usd("unknown-model", 1_000_000, 1_000_000) == 0.0
+
+
+# --------------------------------------------------------------------------- #
+# calibration: scoring SubQ's predictions against executed truth
+# --------------------------------------------------------------------------- #
+
+
+class _StubSnap:
+    """Stands in for SubQ. Predicts from a rule we control, so the scoring
+    machinery can be checked against a known-correct answer."""
+
+    available = True
+
+    def __init__(self, probability=0.9):
+        from blindspot.providers import Usage
+
+        self.usage = Usage()
+        self.probability = probability
+        self.seen = []
+
+    def decide(self, state, questions, timeout=90.0):
+        from blindspot.providers import Answer, DecisionResult
+
+        self.seen.append(state)
+        self.usage.add(1000, 0, 0, "")
+        return DecisionResult(
+            answers={
+                "will_catch": Answer("will_catch", "noul", self.probability),
+                "severity": Answer("severity", "score", 2, confidence=0.7),
+            },
+            input_tokens=1000,
+        )
+
+
+def _two_suites():
+    from blindspot.measure import Suite, validate
+
+    a = Suite("saw-code", "stub", OFFLINE_SELF_TESTS["allocate"], saw_implementation=True)
+    b = Suite("spec-only", "stub", OFFLINE_INDEPENDENT_TESTS["allocate"], saw_implementation=False)
+    for s in (a, b):
+        validate(s, CORRECT)
+    return [a, b]
+
+
+def test_calibration_scores_predictions_against_execution():
+    from blindspot.calibration import calibrate
+
+    real, _, table = partition(CORRECT, generate(CORRECT), "allocate", trials=300)
+    snap = _StubSnap(probability=0.9)
+    rep = calibrate(TASKS["allocate"], _two_suites(), real, snap=snap, classifications=table)
+
+    assert rep.usable
+    assert len(rep.usable) == len(real) * 2
+    # the stub always says 0.9, so accuracy must equal the observed base rate
+    assert rep.accuracy == pytest.approx(rep.base_rate)
+    assert 0.0 <= rep.brier <= 1.0
+
+
+def test_calibration_detects_an_overconfident_predictor():
+    """A predictor that always says 0.9 must show a positive calibration gap
+    wherever the real catch rate is lower."""
+    from blindspot.calibration import calibrate
+
+    real, _, table = partition(CORRECT, generate(CORRECT), "allocate", trials=300)
+    rep = calibrate(TASKS["allocate"], _two_suites(), real, snap=_StubSnap(0.9), classifications=table)
+
+    top = [b for b in rep.buckets() if b.n and b.low >= 0.8]
+    assert top, "expected predictions in the 0.8-1.0 bucket"
+    assert top[0].gap > 0, "always saying 0.9 against a lower base rate is overconfidence"
+
+
+def test_a_useless_predictor_fails_to_beat_the_base_rate_baseline():
+    """The honesty check: a constant predictor must not look good."""
+    from blindspot.calibration import calibrate
+
+    real, _, table = partition(CORRECT, generate(CORRECT), "allocate", trials=300)
+    rep = calibrate(TASKS["allocate"], _two_suites(), real, snap=_StubSnap(0.9), classifications=table)
+    assert rep.brier > rep.baseline_brier, (
+        "a constant 0.9 predictor should lose to always guessing the base rate"
+    )
+
+
+def test_calibration_never_leaks_the_witness_to_the_predictor():
+    """SubQ must not be shown the answer it is being asked to predict."""
+    from blindspot.calibration import calibrate
+
+    real, _, table = partition(CORRECT, generate(CORRECT), "allocate", trials=300)
+    snap = _StubSnap()
+    calibrate(TASKS["allocate"], _two_suites(), real, snap=snap, classifications=table)
+
+    witnesses = [eq.witness.render() for eq in table.values() if eq.witness]
+    for state in snap.seen:
+        assert "original ok:" not in state, "witness output leaked into the prompt"
+        for w in witnesses:
+            assert w not in state
+
+
+def test_severity_is_compared_against_manifestation():
+    from blindspot.calibration import calibrate
+
+    real, _, table = partition(CORRECT, generate(CORRECT), "allocate", trials=300)
+    rep = calibrate(TASKS["allocate"], _two_suites(), real, snap=_StubSnap(), classifications=table)
+    assert rep.manifest_trials, "witness trial counts should be recorded"
+    rows = rep.severity_vs_manifestation()
+    assert rows
+    for lvl, n, mean_trials in rows:
+        assert n > 0 and mean_trials > 0
+
+
+def test_calibration_without_a_key_explains_itself():
+    from blindspot.calibration import calibrate
+    from blindspot.providers import SubQSnap
+
+    class _Absent(SubQSnap):
+        @property
+        def available(self):
+            return False
+
+    rep = calibrate(TASKS["allocate"], _two_suites(), [], snap=_Absent())
+    assert not rep.usable
+    assert any("SUBQ_API_KEY" in n for n in rep.notes)

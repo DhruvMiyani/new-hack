@@ -18,6 +18,7 @@ load_dotenv()
 
 from blindspot import pipeline            # noqa: E402  (after load_dotenv)
 from blindspot.providers import MetaMuse, SubQSnap, status  # noqa: E402
+from blindspot.calibration import calibrate, render_calibration  # noqa: E402
 from blindspot.matrix import render_matrix, run_matrix     # noqa: E402
 from blindspot.providers import AUTHOR_MODELS              # noqa: E402
 from blindspot.report import render_aggregate, render_run   # noqa: E402
@@ -113,6 +114,62 @@ def cmd_matrix(args) -> int:
     return 0
 
 
+def cmd_calibrate(args) -> int:
+    """Score SubQ's predictions about test-suite gaps against executed truth."""
+    from blindspot.equivalence import partition
+    from blindspot.measure import Suite, validate
+    from blindspot.mutate import generate
+    from blindspot.roles import write_independent_tests, write_self_tests
+    from blindspot.runner import extract_code
+    from blindspot.tasks import OFFLINE_INDEPENDENT_TESTS, OFFLINE_SELF_TESTS
+
+    snap = SubQSnap()
+    if not snap.available:
+        print("This needs a SubQ key: it scores SubQ's own predictions.")
+        print("Get 100M free tokens at console.subq.ai, set SUBQ_API_KEY in .env, re-run.")
+        return 2
+
+    muse = MetaMuse()
+    tasks = [TASKS[args.task]] if args.task in TASKS else list(TASKS.values())
+
+    for task in tasks:
+        baseline = task.reference
+        impl = baseline
+
+        # Suites come from Meta when available, otherwise the stand-ins. Either
+        # way they are only the *subject* here -- what is being scored is SubQ.
+        if muse.available and not args.offline_suites:
+            self_src = write_self_tests(muse, task, impl) or OFFLINE_SELF_TESTS[task.name]
+            ind_src = write_independent_tests(muse, task) or OFFLINE_INDEPENDENT_TESTS[task.name]
+            author = muse.model
+        else:
+            self_src = OFFLINE_SELF_TESTS[task.name]
+            ind_src = OFFLINE_INDEPENDENT_TESTS[task.name]
+            author = "offline stand-in"
+
+        suites = [
+            Suite("saw-code", author, self_src, saw_implementation=True),
+            Suite("spec-only", author, ind_src, saw_implementation=False),
+        ]
+        for sui in suites:
+            validate(sui, baseline)
+
+        real, equivalent, table = partition(baseline, generate(baseline), task.target, args.trials)
+        if not real:
+            print(f"{task.name}: no provable defect, skipping")
+            continue
+
+        print(f"{task.name}: {len(real)} proven defect(s) x {len([s for s in suites if s.valid])} "
+              f"suite(s) = {len(real) * len([s for s in suites if s.valid])} predictions to score\n")
+        report = calibrate(task, suites, real, snap=snap, classifications=table)
+        print(render_calibration(report))
+        print()
+
+    print(f"subq usage: {snap.usage.input_tokens} input tokens = "
+          f"${snap.usage.input_tokens * 0.04 / 1_000_000:.4f} (output free)")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         prog="verify", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -134,6 +191,15 @@ def main() -> int:
     m.add_argument("--reasoning", help="comma-separated reasoningEffort levels, e.g. low,high")
     m.add_argument("--trials", type=int, default=400)
     m.set_defaults(fn=cmd_matrix)
+
+    cal = sub.add_parser(
+        "calibrate", help="can SubQ predict test-suite gaps without running them?"
+    )
+    cal.add_argument("--task", help=f"one of: {', '.join(TASKS)}")
+    cal.add_argument("--trials", type=int, default=400)
+    cal.add_argument("--offline-suites", action="store_true",
+                     help="use the stand-in suites even if a Meta key is set")
+    cal.set_defaults(fn=cmd_calibrate)
 
     sub.add_parser("status", help="show provider configuration").set_defaults(fn=cmd_status)
 
