@@ -167,9 +167,28 @@ def render_aggregate(reports: list[RunReport]) -> str:
             f"= {agg['recovery_rate']:.0%}"
         )
     out.append("")
-    out.append("  Read: the implementer's own tests are not a safety net for the")
-    out.append("  defects the implementer was already blind to. Withholding the")
-    out.append("  implementation from the test author recovers a measurable share.")
+    # The conclusion is derived, never asserted. An earlier version hardcoded
+    # "withholding the implementation recovers a measurable share", which a
+    # live run then contradicted while still printing it.
+    si, ii = agg["self_kill_rate"], agg["independent_kill_rate"]
+    delta = ii - si
+    if delta > 0.05:
+        out.append("  Read: withholding the implementation from the test author caught")
+        out.append(f"  {delta:.0%} more of the proven defects. Independence paid here.")
+    elif delta < -0.05:
+        out.append("  Read: the implementer's own tests caught MORE than the independent")
+        out.append(f"  suite, by {-delta:.0%}. Independence did NOT pay on this run.")
+        out.append("  Note the method's own bias: a mutant is a perturbation OF this")
+        out.append("  implementation, so a suite written from that implementation is")
+        out.append("  matched to the perturbation space by construction.")
+    else:
+        out.append("  Read: the two suites scored within 5 points of each other, so this")
+        out.append("  run does not separate them.")
+    if agg["missed_by_self"]:
+        out.append(
+            f"  Either way, independence caught {agg['recovered_by_independent']} of the "
+            f"{agg['missed_by_self']} defect(s) the self-suite missed."
+        )
     return "\n".join(out)
 
 
