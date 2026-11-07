@@ -1,0 +1,7 @@
+{
+  "service": "preview-service",
+  "public_previews_enabled": true,
+  "public_asset_alias": "static-delivery",
+  "private_source_alias": "shared-doc-store",
+  "access_design": "The application authenticates private source reads; anonymous callers may load public assets only. UI visibility is not a storage permission."
+}

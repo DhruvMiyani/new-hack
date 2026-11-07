@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "scope": "Fictional object-storage read authorization only. Requirements are independent of candidate IAM.",
+  "public_resources": [
+    "public-assets"
+  ],
+  "allowed_readers": {
+    "prod-backups": [
+      "app-service",
+      "backup-worker",
+      "admin"
+    ],
+    "public-assets": [
+      "anonymous",
+      "unknown",
+      "preview-service",
+      "app-service",
+      "backup-worker",
+      "staging-worker",
+      "admin"
+    ],
+    "staging-backups": [
+      "staging-worker",
+      "admin"
+    ]
+  },
+  "required_service_reads": {
+    "app-service": "prod-backups",
+    "backup-worker": "prod-backups",
+    "preview-service": "public-assets",
+    "staging-worker": "staging-backups"
+  },
+  "rule": "Private backup objects must not be readable anonymously. Public assets must remain accessible. Hiding a button or changing a URL does not change storage authorization."
+}

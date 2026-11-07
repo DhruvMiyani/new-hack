@@ -1,6 +1,6 @@
 # Repository lab
 
-Open [the local Repository lab](http://localhost:8765/#repository) after starting
+Open [the local Repository lab](http://localhost:8765/workbench.html#repository) after starting
 `.venv/bin/python serve.py`. It runs alongside the security workbench.
 
 ## A three-minute demo

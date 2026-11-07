@@ -1,0 +1,27 @@
+{
+  "buckets": {
+    "prod-backups": {
+      "public_read": false,
+      "readers": [
+        "app-service",
+        "backup-worker",
+        "admin"
+      ]
+    },
+    "public-assets": {
+      "public_read": true,
+      "readers": [
+        "admin",
+        "preview-service"
+      ]
+    },
+    "staging-backups": {
+      "public_read": false,
+      "readers": [
+        "staging-worker",
+        "admin"
+      ]
+    }
+  },
+  "ui_private": false
+}

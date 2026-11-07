@@ -124,6 +124,8 @@ def local_server():
 def test_workbench_http_executes_before_after_instead_of_replaying():
     with local_server() as origin:
         with urllib.request.urlopen(origin + "/") as res:
+            assert b"Stop the Leak" in res.read()
+        with urllib.request.urlopen(origin + "/workbench.html") as res:
             assert b"Security Workbench" in res.read()
         for repair, verdict in ((False, "BLOCK"), (True, "PASS")):
             req = urllib.request.Request(origin + "/api/security", data=json.dumps({"scenario": "combined", "repair": repair}).encode(),

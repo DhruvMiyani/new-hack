@@ -1,0 +1,20 @@
+{
+  "binding": "preview_delivery",
+  "resource": "shared-doc-store",
+  "role": "objectViewer",
+  "before": {
+    "members": [
+      "app-service",
+      "backup-worker",
+      "admin"
+    ]
+  },
+  "candidate": {
+    "members": [
+      "app-service",
+      "backup-worker",
+      "admin",
+      "allUsers"
+    ]
+  }
+}

@@ -8,7 +8,7 @@ python3 -m venv .venv
 .venv/bin/python serve.py
 ```
 
-Open http://localhost:8765. The server binds to loopback only and rejects
+Open http://localhost:8765/workbench.html. The root page opens the Stop the Leak mission. The server binds to loopback only and rejects
 cross-origin actions. It serves only `web/dist/`, never the repository or `.env`.
 
 The **Repository lab** navigation opens [full-source context curation](CONTEXT.md):

@@ -23,6 +23,7 @@ from blindspot.providers import MetaMuse, SubQSnap
 from blindspot.security import BundleError, SCENARIOS, run_security
 from blindspot.repository import DEFAULT_TASK, RepositoryError, curate, load_demo, load_github, load_local, propose_change
 from blindspot.context_benchmark import benchmark
+from blindspot.mission import mission_state, investigate, check_mission
 
 BUSY = threading.BoundedSemaphore(2)
 SNAPSHOTS = OrderedDict()
@@ -96,6 +97,12 @@ def validate_images(images):
 def perform_action(path, data):
     if not isinstance(data, dict):
         raise ValueError("Expected a JSON object.")
+    if path == "/api/mission/investigate":
+        payload = dict(data)
+        payload["images"] = validate_images(data.get("images", []))
+        return investigate(payload)
+    if path == "/api/mission/check":
+        return check_mission(data)
     if path.startswith("/api/repository/"):
         return repository_action(path, data)
     if path == "/api/security":
@@ -139,6 +146,13 @@ class Handler(SimpleHTTPRequestHandler):
             return self.respond(403, {"error": "Local access only."})
         if self.path == "/api/status":
             return self.respond(200, {"mode": "local", "meta": MetaMuse().available, "subq": SubQSnap().available})
+        if self.path == "/api/mission":
+            return self.respond(200, mission_state())
+        route = urlsplit(self.path).path
+        if route in ("/", "/mission", "/mission/"):
+            self.path = "/mission.html"
+        elif route == "/workbench.html":
+            self.path = "/index.html"
         return super().do_GET()
 
     def do_POST(self):
@@ -146,7 +160,7 @@ class Handler(SimpleHTTPRequestHandler):
         allowed_origins = (f"http://127.0.0.1:{self.server.server_port}", f"http://localhost:{self.server.server_port}")
         if not self._host_ok() or (origin and origin not in allowed_origins):
             return self.respond(403, {"error": "Local origin required."})
-        if self.path not in ("/api/security", "/api/gcp", "/api/repository/load", "/api/repository/curate", "/api/repository/benchmark", "/api/repository/propose"):
+        if self.path not in ("/api/security", "/api/gcp", "/api/repository/load", "/api/repository/curate", "/api/repository/benchmark", "/api/repository/propose", "/api/mission/investigate", "/api/mission/check"):
             return self.respond(404, {"error": "Unknown action."})
         if self.headers.get("Content-Type", "").split(";")[0] != "application/json":
             return self.respond(415, {"error": "Send JSON."})

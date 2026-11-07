@@ -1,10 +1,22 @@
 # Blindspot
 
-### Security workbench
+### Stop the Leak — an interactive SubQ mission
 
-[Open the local app](http://localhost:8765) · [Local setup and GCP connection](WORKBENCH.md)
+[Play on localhost](http://localhost:8765) · [Mission guide](MISSION.md) · [Original workbench](http://localhost:8765/workbench.html)
 
-**New: [Repository lab](http://localhost:8765/#repository).** Connect a public GitHub
+Investigate a fictional document-preview change that exposes private production
+backups. Explore the cloud map, predict the exposure, ask SubQ Snap to select
+evidence and rank hypotheses, then run independent access checks. Choose a
+prepared repair and prove private data stays private **while legitimate access
+still works**. A deny-everything repair loses.
+
+SubQ Snap is the only AI model in this mission. Its probabilities are advisory;
+the frozen local contract determines the result. No GCP account is needed and
+no cloud permissions are changed. The scenario and repair options are authored
+fixtures, not presented as AI-generated code. Start with
+`.venv/bin/python serve.py`, then open http://localhost:8765.
+
+**[Repository lab](http://localhost:8765/workbench.html#repository).** Connect a public GitHub
 repo or local Git snapshot, send full eligible source to SubQ, and draft a Meta
 patch from its selected context. An owned 56-file migration tests the result with
 independent checks: one live run passed **14/14 with SubQ context versus 4/14 with

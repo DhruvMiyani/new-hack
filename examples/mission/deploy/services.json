@@ -1,0 +1,26 @@
+{
+  "app-service": {
+    "environment": "production",
+    "reads": [
+      "shared-doc-store"
+    ]
+  },
+  "backup-worker": {
+    "environment": "production",
+    "reads": [
+      "shared-doc-store"
+    ]
+  },
+  "preview-service": {
+    "environment": "production",
+    "reads": [
+      "static-delivery"
+    ]
+  },
+  "staging-worker": {
+    "environment": "staging",
+    "reads": [
+      "sandbox-store"
+    ]
+  }
+}
