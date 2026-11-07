@@ -7,7 +7,7 @@ against each.
 > Venue WiFi credentials from the participant guide are deliberately **not**
 > recorded here — this repository is public.
 
-**Status at last update (12:50 PT):** 174 tests passing, six scored
+**Status at last update (12:31 PT):** 174 tests passing, six scored
 experiments plus a cloud-exposure domain, **zero live API calls made**. See §9.
 
 ---
