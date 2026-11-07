@@ -1,0 +1,274 @@
+"""Tests for the blind-spot measurement.
+
+The important ones are the anti-cheat tests. The headline number is only worth
+anything if a suite cannot inflate it -- so: a suite that fails on correct code
+is disqualified rather than credited, an equivalent mutant is never counted as
+a missed defect, and a defect is never counted without a witness.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from blindspot.equivalence import classify, partition
+from blindspot.measure import Suite, score, validate
+from blindspot.mutate import OPERATORS, generate
+from blindspot.pipeline import INDEPENDENT, SELF, aggregate, run
+from blindspot.providers import choice, noul, score as score_q
+from blindspot.runner import extract_code, run_suite
+from blindspot.tasks import OFFLINE_INDEPENDENT_TESTS, OFFLINE_SELF_TESTS, TASKS
+
+CORRECT = TASKS["allocate"].reference
+
+
+# --------------------------------------------------------------------------- #
+# mutation
+# --------------------------------------------------------------------------- #
+
+
+def test_generates_mutants_that_parse():
+    import ast
+
+    mutants = generate(CORRECT)
+    assert mutants
+    for m in mutants:
+        ast.parse(m.source)                      # a mutant must be valid Python
+        assert m.source.strip() != CORRECT.strip()
+
+
+def test_mutants_are_single_site_and_deduplicated():
+    mutants = generate(CORRECT)
+    sources = [m.source for m in mutants]
+    assert len(sources) == len(set(sources))
+
+
+def test_every_operator_is_reachable():
+    """An operator that never fires is dead weight and would silently narrow coverage."""
+    rich = (
+        "def f(a: int, b: int, items: list) -> int:\n"
+        "    if a < 1 or b > 2:\n"
+        "        return 0\n"
+        "    total = a + b\n"
+        "    total -= 1\n"
+        "    return max(total, len(items))\n"
+    )
+    fired = {m.operator for m in generate(rich)}
+    assert fired, "no operator fired at all"
+    assert fired <= set(OPERATORS)
+    for expected in ("comparison", "boolean", "arithmetic", "offbyone", "swapargs", "dropguard"):
+        assert expected in fired, f"{expected} never fired on code that contains its pattern"
+
+
+# --------------------------------------------------------------------------- #
+# execution
+# --------------------------------------------------------------------------- #
+
+
+def test_suite_passes_on_correct_code():
+    r = run_suite(CORRECT, OFFLINE_INDEPENDENT_TESTS["allocate"])
+    assert r.usable and r.passed_all, r.summary()
+
+
+def test_suite_detects_a_broken_implementation():
+    broken = CORRECT.replace("if r <= remaining:", "if r < remaining:")
+    r = run_suite(broken, OFFLINE_INDEPENDENT_TESTS["allocate"])
+    assert r.detects
+    assert any(t.kind == "assertion" for t in r.failures)
+
+
+def test_import_error_is_not_a_detection():
+    """A suite that cannot import has found nothing -- never conflate the two."""
+    r = run_suite(CORRECT, "from impl import does_not_exist\n\ndef test_x():\n    assert True\n")
+    assert r.import_error
+    assert not r.usable and not r.detects
+
+
+def test_empty_suite_is_unusable():
+    r = run_suite(CORRECT, "x = 1\n")
+    assert not r.usable and not r.detects
+
+
+def test_runner_kills_a_hanging_suite():
+    r = run_suite(CORRECT, "def test_hang():\n    while True:\n        pass\n", timeout=3.0)
+    assert r.timed_out or not r.usable
+    assert not r.detects
+
+
+def test_sandbox_blocks_network_in_tests():
+    suite = (
+        "import socket\n"
+        "def test_net():\n"
+        "    try:\n"
+        "        socket.create_connection(('example.com', 80), timeout=2)\n"
+        "        assert False, 'network reachable'\n"
+        "    except OSError:\n"
+        "        pass\n"
+    )
+    r = run_suite(CORRECT, suite)
+    assert r.usable and r.passed_all
+
+
+def test_extract_code_prefers_the_fenced_block():
+    reply = "Sure!\n\n```python\ndef f():\n    return 1\n```\n\nHope that helps."
+    assert extract_code(reply).strip() == "def f():\n    return 1"
+
+
+# --------------------------------------------------------------------------- #
+# equivalence: no witness, no defect
+# --------------------------------------------------------------------------- #
+
+
+def test_real_defect_gets_a_witness():
+    mutants = [m for m in generate(CORRECT) if m.operator == "arithmetic"]
+    assert mutants
+    eq = classify(CORRECT, mutants[0], "allocate", trials=400)
+    assert eq.is_real_defect
+    assert eq.witness is not None
+    assert eq.witness.original != eq.witness.mutant
+
+
+def test_equivalent_mutant_is_not_counted_as_a_defect():
+    """A no-op change must be classified equivalent, not blamed on the tests."""
+    source = (
+        "def f(a: int) -> int:\n"
+        "    unused = 1\n"          # mutating this literal changes nothing observable
+        "    return a * 2\n"
+    )
+    mutants = [m for m in generate(source) if m.operator == "offbyone"]
+    assert mutants
+    real, equivalent, _ = partition(source, mutants, "f", trials=200)
+    assert equivalent, "a dead-store mutation should be equivalent"
+    assert all(eq.witness is None for _, eq in equivalent)
+
+
+def test_partition_splits_without_losing_mutants():
+    mutants = generate(CORRECT)
+    real, equivalent, table = partition(CORRECT, mutants, "allocate", trials=300)
+    assert len(real) + len(equivalent) == len(mutants)
+    assert len(table) == len(mutants)
+
+
+# --------------------------------------------------------------------------- #
+# the anti-cheat rules
+# --------------------------------------------------------------------------- #
+
+
+def test_suite_that_false_alarms_is_disqualified_not_credited():
+    """The one way to fake a perfect score: fail on everything. It must not work."""
+    always_fails = "def test_always_fails():\n    assert False\n"
+    suite = Suite("cheater", "test", always_fails)
+    validate(suite, CORRECT)
+    assert not suite.valid
+    assert "false alarm" in suite.disqualification()
+
+    card = score("allocate", CORRECT, generate(CORRECT), [suite], "allocate", trials=200)
+    # Disqualified suites are not scored at all, so they kill nothing.
+    assert card.kill_rate("cheater") == 0.0
+    assert all("cheater" not in v.killed_by for v in card.verdicts)
+
+
+def test_only_proven_defects_are_scored():
+    card = score(
+        "allocate",
+        CORRECT,
+        generate(CORRECT),
+        [Suite(SELF, "t", OFFLINE_SELF_TESTS["allocate"])],
+        "allocate",
+        trials=300,
+    )
+    for v in card.verdicts:
+        eq = card.classifications[v.mutant.mutant_id]
+        assert eq.is_real_defect and eq.witness is not None
+
+
+def test_kill_rate_denominator_excludes_equivalents():
+    mutants = generate(CORRECT)
+    card = score(
+        "allocate",
+        CORRECT,
+        mutants,
+        [Suite(SELF, "t", OFFLINE_SELF_TESTS["allocate"])],
+        "allocate",
+        trials=300,
+    )
+    assert len(card.verdicts) <= len(mutants)
+    assert len(card.verdicts) + len(card.equivalent) + len(card.undecided) == len(mutants)
+
+
+# --------------------------------------------------------------------------- #
+# the result the project claims
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize("task_name", list(TASKS))
+def test_independent_suite_beats_self_suite(task_name):
+    """The central claim, re-derived per task from executed code."""
+    report = run(TASKS[task_name], use_models=False, trials=300)
+    card = report.scorecard
+    assert card and card.verdicts, "expected at least one proven defect"
+    assert card.kill_rate(INDEPENDENT) > card.kill_rate(SELF), (
+        f"{task_name}: independent {card.kill_rate(INDEPENDENT):.2f} "
+        f"vs self {card.kill_rate(SELF):.2f}"
+    )
+
+
+def test_recovered_defects_carry_a_witness_and_a_named_test():
+    report = run(TASKS["allocate"], use_models=False, trials=300)
+    card = report.scorecard
+    for v in card.recovered(SELF, INDEPENDENT):
+        eq = card.classifications[v.mutant.mutant_id]
+        assert eq.witness is not None, "a recovered defect must be witnessed"
+        assert v.killing_tests[INDEPENDENT], "must name the test that caught it"
+
+
+def test_pipeline_runs_with_no_api_keys(monkeypatch):
+    for var in ("META_API_KEY", "MODEL_API_KEY", "SUBQ_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+    report = run(TASKS["allocate"], use_models=True, trials=200)
+    assert report.scorecard is not None
+    assert not report.generated and not report.adjudicated
+    assert report.decision in ("BLOCK", "REVIEW", "ALLOW")
+
+
+def test_aggregate_matches_the_per_task_numbers():
+    reports = [run(TASKS[n], use_models=False, trials=200) for n in ("allocate", "trim_mean")]
+    agg = aggregate(reports)
+    assert agg["defects"] == sum(len(r.scorecard.verdicts) for r in reports)
+    assert 0.0 <= agg["self_kill_rate"] <= 1.0
+    assert 0.0 <= agg["independent_kill_rate"] <= 1.0
+    if agg["recovery_rate"] is not None:
+        assert 0.0 <= agg["recovery_rate"] <= 1.0
+
+
+# --------------------------------------------------------------------------- #
+# providers degrade rather than invent
+# --------------------------------------------------------------------------- #
+
+
+def test_subq_question_builders_match_the_documented_schema():
+    q = noul("ask", "yes case", "no case")
+    assert q["type"] == "noul" and set(q["criteria"]) == {"true", "false"}
+
+    c = choice("pick", {"a": "first", "b": "second"})
+    assert c["type"] == "choice" and len(c["criteria"]) == 2
+
+    s = score_q("rate", ["low", "high"])
+    assert s["type"] == "score" and isinstance(s["criteria"], list)
+
+
+def test_subq_reports_missing_key_instead_of_guessing(monkeypatch):
+    from blindspot.providers import SubQSnap
+
+    monkeypatch.delenv("SUBQ_API_KEY", raising=False)
+    snap = SubQSnap()
+    assert not snap.available
+    res = snap.decide("state", {"q": noul("x", "t", "f")})
+    assert not res.ok and "SUBQ_API_KEY" in res.error
+
+
+def test_meta_placeholder_key_is_not_treated_as_configured(monkeypatch):
+    from blindspot.providers import MetaMuse
+
+    monkeypatch.setenv("META_API_KEY", "paste-your-key-here")
+    monkeypatch.delenv("MODEL_API_KEY", raising=False)
+    assert not MetaMuse().available

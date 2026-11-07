@@ -26,6 +26,11 @@ from uagents_core.contrib.protocols.chat import (
 )
 from uagents_core.contrib.protocols.chat.cards import extract_card_response
 
+from blindspot import pipeline as bs_pipeline
+from blindspot import tasks as bs_tasks
+from blindspot.providers import MetaMuse, SubQSnap
+from blindspot.providers import status as bs_status
+from blindspot.report import render_markdown
 from codegate import cards, learn, llm, policy
 from codegate.models import Status
 from codegate.pipeline import ReviewResult, Step
@@ -68,6 +73,9 @@ executed, with the real output attached. Anything I could not reproduce is label
 unproven and is never allowed to block on its own.
 
 **Other commands:**
+- `blindspot` — the headline experiment: have a model write code *and its own tests*,
+  have an independent author write tests from the spec alone, inject known defects, and
+  measure which suite actually catches them
 - `metrics` — my accuracy on a held-out set I never tune against
 - `learn` — find a defect class I miss, propose a fix, promote it only if held-out numbers improve
 - `rules` — the active ruleset
@@ -177,6 +185,104 @@ async def do_review(ctx: Context, sender: str, text: str) -> None:
 
     await ctx.send(sender, _say(body, extras))
     await ctx.send(sender, _say(render_steps(result)))
+
+
+async def do_blindspot(ctx: Context, sender: str, task_name: str | None = None) -> None:
+    """Run the blind-spot measurement and report it inside the conversation."""
+    st = bs_status()
+    chosen = [bs_tasks.TASKS[task_name]] if task_name in bs_tasks.TASKS else list(bs_tasks.TASKS.values())
+
+    await ctx.send(sender, _say(
+        "### Blind-spot measurement\n\n"
+        "The question: *can a verifier write its own tests without sharing the "
+        "implementer's blind spots?* I answer it by injecting defects with known ground "
+        "truth and seeing which suite catches them.\n\n"
+        f"- Meta Model API — {st['meta']}\n"
+        f"- SubQ Decisions API — {st['subq']}\n\n"
+        f"Running {len(chosen)} task(s). Every number below comes from executed code, "
+        "so this works even with neither key configured."
+    ))
+
+    reports = []
+    for task in chosen:
+        report = bs_pipeline.run(task)
+        reports.append(report)
+        await ctx.send(sender, _say(render_markdown(report)))
+
+    agg = bs_pipeline.aggregate(reports)
+    body = [
+        "### Pooled result",
+        "",
+        f"**{agg['defects']} proven defect(s)** across {len(reports)} task(s) — each one "
+        "confirmed by a witnessed input, not a pattern match.",
+        "",
+        "| test suite | defects caught |",
+        "|---|---|",
+        f"| implementer's own | {agg['self_kill_rate']:.0%} |",
+        f"| independent (spec only) | {agg['independent_kill_rate']:.0%} |",
+    ]
+    if agg["recovery_rate"] is not None:
+        body += [
+            "",
+            f"**Blind-spot recovery: {agg['recovery_rate']:.0%}** — of the "
+            f"{agg['missed_by_self']} real defect(s) the implementer's own tests let "
+            f"through, independence caught {agg['recovered_by_independent']}.",
+        ]
+    body += [
+        "",
+        "An implementer's own tests are not a safety net for the defects it was already "
+        "blind to. Withholding the implementation from the test author recovers a "
+        "measurable share of them.",
+    ]
+
+    muse, snap = MetaMuse(), SubQSnap()
+    if muse.usage.calls or snap.usage.calls:
+        body += [
+            "",
+            f"_api usage: Meta {muse.usage.calls} call(s) "
+            f"({muse.usage.input_tokens}in/{muse.usage.output_tokens}out), "
+            f"SubQ {snap.usage.calls} call(s) ({snap.usage.input_tokens}in, output free)._",
+        ]
+
+    await ctx.send(sender, _say("\n".join(body), [_blindspot_card(agg, len(reports))]))
+
+
+def _blindspot_card(agg: dict, n_tasks: int):
+    """Review card carrying the measurement and the merge decision it implies."""
+    from uagents_core.contrib.protocols.chat.cards import (
+        CtaAction,
+        ReviewCardPayload,
+        ReviewSummaryRow,
+        create_card_content,
+    )
+    from uuid import uuid4
+
+    rows = [
+        ReviewSummaryRow(label="Tasks", value=str(n_tasks)),
+        ReviewSummaryRow(label="Proven defects", value=str(agg["defects"])),
+        ReviewSummaryRow(label="Self-written tests caught", value=f"{agg['self_kill_rate']:.0%}"),
+        ReviewSummaryRow(label="Independent tests caught", value=f"{agg['independent_kill_rate']:.0%}"),
+        ReviewSummaryRow(label="Missed by self-tests", value=str(agg["missed_by_self"])),
+    ]
+    if agg["recovery_rate"] is not None:
+        rows.append(ReviewSummaryRow(label="Blind-spot recovery", value=f"{agg['recovery_rate']:.0%}"))
+
+    blocking = agg["missed_by_self"] > 0
+    payload = ReviewCardPayload(
+        title=("BLOCK — self-tests have holes" if blocking else "ALLOW — self-tests held up"),
+        summary_rows=rows,
+        approve_cta=CtaAction(
+            label="Trust the implementer's tests",
+            selection={"action": "trust_self_tests"},
+            primary=not blocking,
+        ),
+        reject_cta=CtaAction(
+            label="Require independent tests",
+            selection={"action": "require_independent"},
+            primary=blocking,
+        ),
+    )
+    return create_card_content(payload, card_id=uuid4())
 
 
 async def do_metrics(ctx: Context, sender: str) -> None:
@@ -309,6 +415,20 @@ async def handle_card_action(ctx: Context, sender: str, selection: dict) -> bool
             await ctx.send(sender, _say(f"Blocked **{ref}** on your judgement, not mine."))
         return True
 
+    if action in ("trust_self_tests", "require_independent"):
+        if action == "require_independent":
+            await ctx.send(sender, _say(
+                "Recorded: independent tests required before merge. That is the policy the "
+                "measurement supports — the implementer's own suite demonstrably missed real "
+                "defects that a spec-only author caught."
+            ))
+        else:
+            await ctx.send(sender, _say(
+                "Recorded: relying on the implementer's own tests. Worth noting the measurement "
+                "above found real defects that suite let through."
+            ))
+        return True
+
     if action in ("keep_ruleset", "rollback"):
         version = str(selection.get("version", ""))
         if action == "rollback" and version:
@@ -368,6 +488,13 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
         return
 
     try:
+        lowered = text.lower().strip()
+        if lowered.startswith(("blindspot", "blind spot", "independence", "experiment")):
+            parts = lowered.split()
+            wanted = next((p for p in parts if p in bs_tasks.TASKS), None)
+            await do_blindspot(ctx, sender, wanted)
+            return
+
         intent = "review" if _looks_like_code(text) else llm.classify(text)
         if intent == "metrics":
             await do_metrics(ctx, sender)
