@@ -11,6 +11,10 @@ python3 -m venv .venv
 Open http://localhost:8765. The server binds to loopback only and rejects
 cross-origin actions. It serves only `web/dist/`, never the repository or `.env`.
 
+The **Repository lab** navigation opens [full-source context curation](CONTEXT.md):
+public GitHub/local snapshots, SubQ file selection, Meta patch drafts, and an
+independent multi-file migration experiment on the owned Atlas fixture.
+
 The primary workflow is **inspect change → execute probes → inspect evidence →
 verify a repair**. Three scenarios cover public storage, privilege escalation,
 and staging-to-production access. A clean control demonstrates preserved legitimate

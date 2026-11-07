@@ -1,0 +1,1457 @@
+{
+  "snapshot": {
+    "source": "Atlas Billing \u00b7 owned migration fixture",
+    "revision": "fixture-v1",
+    "fingerprint": "9d141eb3600b73b895d25b2f639e4e2fcf3be260589898bce9d261240fa013c2",
+    "demo": true,
+    "excluded": [],
+    "total_bytes": 8696,
+    "estimated_tokens": 2416,
+    "token_note": "Estimated before inference; actual provider input tokens reported after SubQ calls."
+  },
+  "curation": {
+    "method": "subq",
+    "task": "Migrate the CURRENT invoice API, dataclass model, SDK, schema validation, authorization, query filtering, CSV exports, and current API documentation from tenant_id to workspace_id. Current requests and outputs must use workspace_id; requests with only tenant_id must fail. The legacy CSV importer must still accept tenant_id input but return a current workspace_id record. Update the existing negative-amount test to use the current field so it still tests amount validation. Preserve legacy input documentation, archived release notes, unrelated utilities, and negative-amount rejection.",
+    "source_fingerprint": "9d141eb3600b73b895d25b2f639e4e2fcf3be260589898bce9d261240fa013c2",
+    "files": [
+      {
+        "path": "atlas/sdk.py",
+        "score": 0.999967098236084,
+        "method": "subq",
+        "selected": true,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 3
+          }
+        ]
+      },
+      {
+        "path": "docs/current-api.md",
+        "score": 0.9999531507492065,
+        "method": "subq",
+        "selected": true,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 5
+          },
+          {
+            "start": 2,
+            "end": 5
+          },
+          {
+            "start": 3,
+            "end": 5
+          }
+        ]
+      },
+      {
+        "path": "atlas/exports.py",
+        "score": 0.9999411106109619,
+        "method": "subq",
+        "selected": true,
+        "line_ranges": [
+          {
+            "start": 5,
+            "end": 9
+          },
+          {
+            "start": 7,
+            "end": 10
+          },
+          {
+            "start": 8,
+            "end": 10
+          }
+        ]
+      },
+      {
+        "path": "atlas/schemas.py",
+        "score": 0.999940037727356,
+        "method": "subq",
+        "selected": true,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 2,
+            "end": 6
+          },
+          {
+            "start": 3,
+            "end": 7
+          },
+          {
+            "start": 4,
+            "end": 8
+          }
+        ]
+      },
+      {
+        "path": "atlas/models.py",
+        "score": 0.9998735189437866,
+        "method": "subq",
+        "selected": true,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 5
+          },
+          {
+            "start": 2,
+            "end": 6
+          },
+          {
+            "start": 3,
+            "end": 6
+          }
+        ]
+      },
+      {
+        "path": "atlas/queries.py",
+        "score": 0.9998674392700195,
+        "method": "subq",
+        "selected": true,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 2
+          },
+          {
+            "start": 1,
+            "end": 2
+          }
+        ]
+      },
+      {
+        "path": "atlas/legacy.py",
+        "score": 0.9998230338096619,
+        "method": "subq",
+        "selected": true,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/auth.py",
+        "score": 0.9998200535774231,
+        "method": "subq",
+        "selected": true,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 2
+          },
+          {
+            "start": 1,
+            "end": 2
+          }
+        ]
+      },
+      {
+        "path": "tests/test_amounts.py",
+        "score": 0.9997227787971497,
+        "method": "subq",
+        "selected": true,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 6
+          },
+          {
+            "start": 3,
+            "end": 7
+          }
+        ]
+      },
+      {
+        "path": "atlas/api.py",
+        "score": 0.9997215867042542,
+        "method": "subq",
+        "selected": true,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 6
+          },
+          {
+            "start": 4,
+            "end": 6
+          }
+        ]
+      },
+      {
+        "path": "README.md",
+        "score": 0.01769746094942093,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 5
+          },
+          {
+            "start": 2,
+            "end": 6
+          },
+          {
+            "start": 3,
+            "end": 6
+          },
+          {
+            "start": 4,
+            "end": 6
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/limits.py",
+        "score": 0.006822574883699417,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/reserves.py",
+        "score": 0.004754259251058102,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/quotas.py",
+        "score": 0.004130113869905472,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "docs/archive/v7.md",
+        "score": 0.0033948388881981373,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 3
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/rounding.py",
+        "score": 0.0032894520554691553,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/installments.py",
+        "score": 0.002693422371521592,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/loyalty.py",
+        "score": 0.0021294024772942066,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/monthly.py",
+        "score": 0.0019700569100677967,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/usage.py",
+        "score": 0.0017280301544815302,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/percentage.py",
+        "score": 0.001645312993787229,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/balance.py",
+        "score": 0.0015581614570692182,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "docs/archive/v4.md",
+        "score": 0.0014554982772096992,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 3
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/discount.py",
+        "score": 0.0012976150028407574,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/money.py",
+        "score": 0.0012846310855820775,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/refund.py",
+        "score": 0.0010756559204310179,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "docs/archive/v8.md",
+        "score": 0.00107431854121387,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 3
+          }
+        ]
+      },
+      {
+        "path": "docs/archive/v5.md",
+        "score": 0.0010027192765846848,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 3
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/backoff.py",
+        "score": 0.0009060532902367413,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/reminders.py",
+        "score": 0.0008551538921892643,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/retries.py",
+        "score": 0.0008532952051609755,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/tax.py",
+        "score": 0.0008492504712194204,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/ledger.py",
+        "score": 0.0008211185340769589,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/aging.py",
+        "score": 0.0008074628422036767,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/credit.py",
+        "score": 0.0007677722605876625,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/annual.py",
+        "score": 0.0007266800384968519,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/settlements.py",
+        "score": 0.0006996351876296103,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/currency.py",
+        "score": 0.0006858599372208118,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "docs/archive/v11.md",
+        "score": 0.0006654479075223207,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 3
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/shipping.py",
+        "score": 0.0006648362032137811,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/receipt.py",
+        "score": 0.0005985409952700138,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/debit.py",
+        "score": 0.0005216567078605294,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "docs/archive/v6.md",
+        "score": 0.0004808224330190569,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 3
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/overdue.py",
+        "score": 0.00047235554666258395,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/__init__.py",
+        "score": 0.00046272401232272387,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": []
+      },
+      {
+        "path": "docs/archive/v3.md",
+        "score": 0.0004263324080966413,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 3
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/fees.py",
+        "score": 0.00042017869418486953,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "docs/archive/v12.md",
+        "score": 0.0003984168579336256,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 3
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/commissions.py",
+        "score": 0.0003722473047673702,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/thresholds.py",
+        "score": 0.00037214599433355033,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 4
+          },
+          {
+            "start": 2,
+            "end": 4
+          }
+        ]
+      },
+      {
+        "path": "docs/archive/v2.md",
+        "score": 0.0003428712079767138,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 3
+          }
+        ]
+      },
+      {
+        "path": "docs/archive/v10.md",
+        "score": 0.0003419177373871207,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 3
+          }
+        ]
+      },
+      {
+        "path": "docs/archive/v9.md",
+        "score": 0.00028905036742798984,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 3
+          }
+        ]
+      },
+      {
+        "path": "docs/legacy-csv.md",
+        "score": 0.0001519896904937923,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 5
+          },
+          {
+            "start": 2,
+            "end": 5
+          },
+          {
+            "start": 3,
+            "end": 5
+          }
+        ]
+      },
+      {
+        "path": "atlas/utilities/__init__.py",
+        "score": 0.0001457425969420001,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 1
+          }
+        ]
+      },
+      {
+        "path": "docs/archive/v1.md",
+        "score": 0.00014525381266139448,
+        "method": "subq",
+        "selected": false,
+        "line_ranges": [
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 1,
+            "end": 3
+          }
+        ]
+      }
+    ],
+    "selected": [
+      "atlas/sdk.py",
+      "docs/current-api.md",
+      "atlas/exports.py",
+      "atlas/schemas.py",
+      "atlas/models.py",
+      "atlas/queries.py",
+      "atlas/legacy.py",
+      "atlas/auth.py",
+      "tests/test_amounts.py",
+      "atlas/api.py"
+    ],
+    "file_count": 56,
+    "context_bytes": 11828,
+    "estimated_context_tokens": 3286,
+    "actual_input_tokens": 6446,
+    "model_calls": 1,
+    "latency_ms": 450,
+    "selected_source_bytes": 1804,
+    "total_source_bytes": 8696,
+    "context_reduction": 0.7925482980680773,
+    "range_note": "Line ranges are keyword-guided inspection hints, not a separate model prediction.",
+    "coverage_note": "Every eligible file is supplied in full in each SubQ request. Exclusions are listed in the snapshot; estimates are not tokenizer counts."
+  },
+  "benchmark": {
+    "arms": [
+      {
+        "label": "subq",
+        "selected": [
+          "atlas/sdk.py",
+          "docs/current-api.md",
+          "atlas/exports.py",
+          "atlas/schemas.py",
+          "atlas/models.py",
+          "atlas/queries.py",
+          "atlas/legacy.py",
+          "atlas/auth.py",
+          "tests/test_amounts.py",
+          "atlas/api.py"
+        ],
+        "generator": "meta",
+        "contract_hash": "f1a6c94f8c6f18ef882c1f61d3aa9e8e926a97479c811b0c42c105a8d3456cf6",
+        "expected_files": [
+          "atlas/api.py",
+          "atlas/auth.py",
+          "atlas/exports.py",
+          "atlas/legacy.py",
+          "atlas/models.py",
+          "atlas/queries.py",
+          "atlas/schemas.py",
+          "atlas/sdk.py",
+          "docs/current-api.md",
+          "tests/test_amounts.py"
+        ],
+        "recall": 1.0,
+        "precision": 1.0,
+        "missed_files": [],
+        "checks": [
+          {
+            "name": "current API accepts workspace_id",
+            "passed": true
+          },
+          {
+            "name": "current API rejects old-only input",
+            "passed": true
+          },
+          {
+            "name": "model uses workspace_id",
+            "passed": true
+          },
+          {
+            "name": "SDK supports new keyword",
+            "passed": true
+          },
+          {
+            "name": "schema accepts new fields",
+            "passed": true
+          },
+          {
+            "name": "authorization allows same workspace",
+            "passed": true
+          },
+          {
+            "name": "authorization rejects other workspace",
+            "passed": true
+          },
+          {
+            "name": "query keeps workspace isolation",
+            "passed": true
+          },
+          {
+            "name": "export emits current schema",
+            "passed": true
+          },
+          {
+            "name": "legacy input remains compatible",
+            "passed": true
+          },
+          {
+            "name": "negative amount remains rejected",
+            "passed": true
+          },
+          {
+            "name": "current API documentation migrated",
+            "passed": true
+          },
+          {
+            "name": "legacy docs, archives, and utilities preserved",
+            "passed": true
+          },
+          {
+            "name": "existing negative-amount test uses current schema",
+            "passed": true
+          }
+        ],
+        "passed": 14,
+        "total": 14,
+        "verdict": "PASS",
+        "edits": [
+          {
+            "file": "atlas/sdk.py",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          },
+          {
+            "file": "docs/current-api.md",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          },
+          {
+            "file": "atlas/exports.py",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          },
+          {
+            "file": "atlas/schemas.py",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          },
+          {
+            "file": "atlas/models.py",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          },
+          {
+            "file": "atlas/queries.py",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          },
+          {
+            "file": "atlas/legacy.py",
+            "old": "return {\"tenant_id\"",
+            "new": "return {\"workspace_id\""
+          },
+          {
+            "file": "atlas/auth.py",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          },
+          {
+            "file": "tests/test_amounts.py",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          },
+          {
+            "file": "atlas/api.py",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          }
+        ],
+        "diff": "--- a/atlas/api.py\n+++ b/atlas/api.py\n@@ -3,4 +3,4 @@\n \n def create_invoice(payload):\n     validate(payload)\n-    return Invoice(tenant_id=payload[\"tenant_id\"], amount=payload[\"amount\"])\n+    return Invoice(workspace_id=payload[\"workspace_id\"], amount=payload[\"amount\"])\n\n--- a/atlas/auth.py\n+++ b/atlas/auth.py\n@@ -1,2 +1,2 @@\n def can_read(user, record):\n-    return user[\"tenant_id\"] == record[\"tenant_id\"]\n+    return user[\"workspace_id\"] == record[\"workspace_id\"]\n\n--- a/atlas/exports.py\n+++ b/atlas/exports.py\n@@ -4,7 +4,7 @@\n def export_rows(rows):\n     stream = io.StringIO()\n     writer = csv.writer(stream)\n-    writer.writerow([\"tenant_id\", \"amount\"])\n+    writer.writerow([\"workspace_id\", \"amount\"])\n     for row in rows:\n-        writer.writerow([row[\"tenant_id\"], row[\"amount\"]])\n+        writer.writerow([row[\"workspace_id\"], row[\"amount\"]])\n     return stream.getvalue()\n\n--- a/atlas/legacy.py\n+++ b/atlas/legacy.py\n@@ -1,4 +1,4 @@\n \"\"\"The legacy CSV import format must keep its tenant_id input field.\"\"\"\n \n def import_record(record):\n-    return {\"tenant_id\": record[\"tenant_id\"], \"amount\": record[\"amount\"]}\n+    return {\"workspace_id\": record[\"tenant_id\"], \"amount\": record[\"amount\"]}\n\n--- a/atlas/models.py\n+++ b/atlas/models.py\n@@ -2,5 +2,5 @@\n \n @dataclass\n class Invoice:\n-    tenant_id: str\n+    workspace_id: str\n     amount: int\n\n--- a/atlas/queries.py\n+++ b/atlas/queries.py\n@@ -1,2 +1,2 @@\n-def list_invoices(rows, tenant_id):\n-    return [row for row in rows if row[\"tenant_id\"] == tenant_id]\n+def list_invoices(rows, workspace_id):\n+    return [row for row in rows if row[\"workspace_id\"] == workspace_id]\n\n--- a/atlas/schemas.py\n+++ b/atlas/schemas.py\n@@ -1,4 +1,4 @@\n-REQUIRED_FIELDS = (\"tenant_id\", \"amount\")\n+REQUIRED_FIELDS = (\"workspace_id\", \"amount\")\n \n def validate(payload):\n     if any(key not in payload for key in REQUIRED_FIELDS):\n\n--- a/atlas/sdk.py\n+++ b/atlas/sdk.py\n@@ -1,3 +1,3 @@\n class Client:\n-    def create_invoice(self, tenant_id, amount):\n-        return {\"tenant_id\": tenant_id, \"amount\": amount}\n+    def create_invoice(self, workspace_id, amount):\n+        return {\"workspace_id\": workspace_id, \"amount\": amount}\n\n--- a/docs/current-api.md\n+++ b/docs/current-api.md\n@@ -1,5 +1,5 @@\n # Current invoice API\n \n-POST /invoices accepts tenant_id and amount. The SDK create_invoice method\n-takes tenant_id. Invoice records and exports carry tenant_id. Legacy CSV\n+POST /invoices accepts workspace_id and amount. The SDK create_invoice method\n+takes workspace_id. Invoice records and exports carry workspace_id. Legacy CSV\n imports are documented separately and retain their historical input format.\n\n--- a/tests/test_amounts.py\n+++ b/tests/test_amounts.py\n@@ -4,4 +4,4 @@\n class AmountTests(unittest.TestCase):\n     def test_negative_amount_is_rejected(self):\n         with self.assertRaises(ValueError):\n-            create_invoice({\"tenant_id\": \"a\", \"amount\": -1})\n+            create_invoice({\"workspace_id\": \"a\", \"amount\": -1})\n",
+        "changed_files": [
+          "atlas/api.py",
+          "atlas/auth.py",
+          "atlas/exports.py",
+          "atlas/legacy.py",
+          "atlas/models.py",
+          "atlas/queries.py",
+          "atlas/schemas.py",
+          "atlas/sdk.py",
+          "docs/current-api.md",
+          "tests/test_amounts.py"
+        ]
+      },
+      {
+        "label": "keyword baseline (matched file count)",
+        "selected": [
+          "docs/legacy-csv.md",
+          "atlas/legacy.py",
+          "docs/current-api.md",
+          "docs/archive/v1.md",
+          "docs/archive/v10.md",
+          "docs/archive/v11.md",
+          "docs/archive/v12.md",
+          "docs/archive/v2.md",
+          "docs/archive/v3.md",
+          "docs/archive/v4.md"
+        ],
+        "generator": "meta",
+        "contract_hash": "f1a6c94f8c6f18ef882c1f61d3aa9e8e926a97479c811b0c42c105a8d3456cf6",
+        "expected_files": [
+          "atlas/api.py",
+          "atlas/auth.py",
+          "atlas/exports.py",
+          "atlas/legacy.py",
+          "atlas/models.py",
+          "atlas/queries.py",
+          "atlas/schemas.py",
+          "atlas/sdk.py",
+          "docs/current-api.md",
+          "tests/test_amounts.py"
+        ],
+        "recall": 0.2,
+        "precision": 0.2,
+        "missed_files": [
+          "atlas/api.py",
+          "atlas/auth.py",
+          "atlas/exports.py",
+          "atlas/models.py",
+          "atlas/queries.py",
+          "atlas/schemas.py",
+          "atlas/sdk.py",
+          "tests/test_amounts.py"
+        ],
+        "checks": [
+          {
+            "name": "current API accepts workspace_id",
+            "passed": false,
+            "error": "ValueError: Missing required invoice field"
+          },
+          {
+            "name": "current API rejects old-only input",
+            "passed": false,
+            "error": "AssertionError: "
+          },
+          {
+            "name": "model uses workspace_id",
+            "passed": false,
+            "error": "AssertionError: "
+          },
+          {
+            "name": "SDK supports new keyword",
+            "passed": false,
+            "error": "TypeError: Client.create_invoice() got an unexpected keyword argument 'workspace_id'"
+          },
+          {
+            "name": "schema accepts new fields",
+            "passed": false,
+            "error": "ValueError: Missing required invoice field"
+          },
+          {
+            "name": "authorization allows same workspace",
+            "passed": false,
+            "error": "KeyError: 'tenant_id'"
+          },
+          {
+            "name": "authorization rejects other workspace",
+            "passed": false,
+            "error": "KeyError: 'tenant_id'"
+          },
+          {
+            "name": "query keeps workspace isolation",
+            "passed": false,
+            "error": "TypeError: list_invoices() got an unexpected keyword argument 'workspace_id'"
+          },
+          {
+            "name": "export emits current schema",
+            "passed": false,
+            "error": "KeyError: 'tenant_id'"
+          },
+          {
+            "name": "legacy input remains compatible",
+            "passed": true
+          },
+          {
+            "name": "negative amount remains rejected",
+            "passed": true
+          },
+          {
+            "name": "current API documentation migrated",
+            "passed": true
+          },
+          {
+            "name": "legacy docs, archives, and utilities preserved",
+            "passed": true
+          },
+          {
+            "name": "existing negative-amount test uses current schema",
+            "passed": false
+          }
+        ],
+        "passed": 4,
+        "total": 14,
+        "verdict": "BLOCK",
+        "edits": [
+          {
+            "file": "docs/current-api.md",
+            "old": "POST /invoices accepts tenant_id and amount. The SDK create_invoice method\ntakes tenant_id. Invoice records and exports carry tenant_id.",
+            "new": "POST /invoices accepts workspace_id and amount. The SDK create_invoice method\ntakes workspace_id. Invoice records and exports carry workspace_id."
+          },
+          {
+            "file": "atlas/legacy.py",
+            "old": "return {\"tenant_id\":",
+            "new": "return {\"workspace_id\":"
+          }
+        ],
+        "diff": "--- a/atlas/legacy.py\n+++ b/atlas/legacy.py\n@@ -1,4 +1,4 @@\n \"\"\"The legacy CSV import format must keep its tenant_id input field.\"\"\"\n \n def import_record(record):\n-    return {\"tenant_id\": record[\"tenant_id\"], \"amount\": record[\"amount\"]}\n+    return {\"workspace_id\": record[\"tenant_id\"], \"amount\": record[\"amount\"]}\n\n--- a/docs/current-api.md\n+++ b/docs/current-api.md\n@@ -1,5 +1,5 @@\n # Current invoice API\n \n-POST /invoices accepts tenant_id and amount. The SDK create_invoice method\n-takes tenant_id. Invoice records and exports carry tenant_id. Legacy CSV\n+POST /invoices accepts workspace_id and amount. The SDK create_invoice method\n+takes workspace_id. Invoice records and exports carry workspace_id. Legacy CSV\n imports are documented separately and retain their historical input format.\n",
+        "changed_files": [
+          "atlas/legacy.py",
+          "docs/current-api.md"
+        ]
+      },
+      {
+        "label": "reference selection (not a model)",
+        "selected": [
+          "atlas/models.py",
+          "atlas/schemas.py",
+          "atlas/api.py",
+          "atlas/sdk.py",
+          "atlas/auth.py",
+          "atlas/queries.py",
+          "atlas/exports.py",
+          "atlas/legacy.py",
+          "docs/current-api.md",
+          "tests/test_amounts.py"
+        ],
+        "generator": "reference",
+        "contract_hash": "f1a6c94f8c6f18ef882c1f61d3aa9e8e926a97479c811b0c42c105a8d3456cf6",
+        "expected_files": [
+          "atlas/api.py",
+          "atlas/auth.py",
+          "atlas/exports.py",
+          "atlas/legacy.py",
+          "atlas/models.py",
+          "atlas/queries.py",
+          "atlas/schemas.py",
+          "atlas/sdk.py",
+          "docs/current-api.md",
+          "tests/test_amounts.py"
+        ],
+        "recall": 1.0,
+        "precision": 1.0,
+        "missed_files": [],
+        "checks": [
+          {
+            "name": "current API accepts workspace_id",
+            "passed": true
+          },
+          {
+            "name": "current API rejects old-only input",
+            "passed": true
+          },
+          {
+            "name": "model uses workspace_id",
+            "passed": true
+          },
+          {
+            "name": "SDK supports new keyword",
+            "passed": true
+          },
+          {
+            "name": "schema accepts new fields",
+            "passed": true
+          },
+          {
+            "name": "authorization allows same workspace",
+            "passed": true
+          },
+          {
+            "name": "authorization rejects other workspace",
+            "passed": true
+          },
+          {
+            "name": "query keeps workspace isolation",
+            "passed": true
+          },
+          {
+            "name": "export emits current schema",
+            "passed": true
+          },
+          {
+            "name": "legacy input remains compatible",
+            "passed": true
+          },
+          {
+            "name": "negative amount remains rejected",
+            "passed": true
+          },
+          {
+            "name": "current API documentation migrated",
+            "passed": true
+          },
+          {
+            "name": "legacy docs, archives, and utilities preserved",
+            "passed": true
+          },
+          {
+            "name": "existing negative-amount test uses current schema",
+            "passed": true
+          }
+        ],
+        "passed": 14,
+        "total": 14,
+        "verdict": "PASS",
+        "edits": [
+          {
+            "file": "atlas/models.py",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          },
+          {
+            "file": "atlas/schemas.py",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          },
+          {
+            "file": "atlas/api.py",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          },
+          {
+            "file": "atlas/sdk.py",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          },
+          {
+            "file": "atlas/auth.py",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          },
+          {
+            "file": "atlas/queries.py",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          },
+          {
+            "file": "atlas/exports.py",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          },
+          {
+            "file": "atlas/legacy.py",
+            "old": "return {\"tenant_id\":",
+            "new": "return {\"workspace_id\":"
+          },
+          {
+            "file": "docs/current-api.md",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          },
+          {
+            "file": "tests/test_amounts.py",
+            "old": "tenant_id",
+            "new": "workspace_id"
+          }
+        ],
+        "diff": "--- a/atlas/api.py\n+++ b/atlas/api.py\n@@ -3,4 +3,4 @@\n \n def create_invoice(payload):\n     validate(payload)\n-    return Invoice(tenant_id=payload[\"tenant_id\"], amount=payload[\"amount\"])\n+    return Invoice(workspace_id=payload[\"workspace_id\"], amount=payload[\"amount\"])\n\n--- a/atlas/auth.py\n+++ b/atlas/auth.py\n@@ -1,2 +1,2 @@\n def can_read(user, record):\n-    return user[\"tenant_id\"] == record[\"tenant_id\"]\n+    return user[\"workspace_id\"] == record[\"workspace_id\"]\n\n--- a/atlas/exports.py\n+++ b/atlas/exports.py\n@@ -4,7 +4,7 @@\n def export_rows(rows):\n     stream = io.StringIO()\n     writer = csv.writer(stream)\n-    writer.writerow([\"tenant_id\", \"amount\"])\n+    writer.writerow([\"workspace_id\", \"amount\"])\n     for row in rows:\n-        writer.writerow([row[\"tenant_id\"], row[\"amount\"]])\n+        writer.writerow([row[\"workspace_id\"], row[\"amount\"]])\n     return stream.getvalue()\n\n--- a/atlas/legacy.py\n+++ b/atlas/legacy.py\n@@ -1,4 +1,4 @@\n \"\"\"The legacy CSV import format must keep its tenant_id input field.\"\"\"\n \n def import_record(record):\n-    return {\"tenant_id\": record[\"tenant_id\"], \"amount\": record[\"amount\"]}\n+    return {\"workspace_id\": record[\"tenant_id\"], \"amount\": record[\"amount\"]}\n\n--- a/atlas/models.py\n+++ b/atlas/models.py\n@@ -2,5 +2,5 @@\n \n @dataclass\n class Invoice:\n-    tenant_id: str\n+    workspace_id: str\n     amount: int\n\n--- a/atlas/queries.py\n+++ b/atlas/queries.py\n@@ -1,2 +1,2 @@\n-def list_invoices(rows, tenant_id):\n-    return [row for row in rows if row[\"tenant_id\"] == tenant_id]\n+def list_invoices(rows, workspace_id):\n+    return [row for row in rows if row[\"workspace_id\"] == workspace_id]\n\n--- a/atlas/schemas.py\n+++ b/atlas/schemas.py\n@@ -1,4 +1,4 @@\n-REQUIRED_FIELDS = (\"tenant_id\", \"amount\")\n+REQUIRED_FIELDS = (\"workspace_id\", \"amount\")\n \n def validate(payload):\n     if any(key not in payload for key in REQUIRED_FIELDS):\n\n--- a/atlas/sdk.py\n+++ b/atlas/sdk.py\n@@ -1,3 +1,3 @@\n class Client:\n-    def create_invoice(self, tenant_id, amount):\n-        return {\"tenant_id\": tenant_id, \"amount\": amount}\n+    def create_invoice(self, workspace_id, amount):\n+        return {\"workspace_id\": workspace_id, \"amount\": amount}\n\n--- a/docs/current-api.md\n+++ b/docs/current-api.md\n@@ -1,5 +1,5 @@\n # Current invoice API\n \n-POST /invoices accepts tenant_id and amount. The SDK create_invoice method\n-takes tenant_id. Invoice records and exports carry tenant_id. Legacy CSV\n+POST /invoices accepts workspace_id and amount. The SDK create_invoice method\n+takes workspace_id. Invoice records and exports carry workspace_id. Legacy CSV\n imports are documented separately and retain their historical input format.\n\n--- a/tests/test_amounts.py\n+++ b/tests/test_amounts.py\n@@ -4,4 +4,4 @@\n class AmountTests(unittest.TestCase):\n     def test_negative_amount_is_rejected(self):\n         with self.assertRaises(ValueError):\n-            create_invoice({\"tenant_id\": \"a\", \"amount\": -1})\n+            create_invoice({\"workspace_id\": \"a\", \"amount\": -1})\n",
+        "changed_files": [
+          "atlas/api.py",
+          "atlas/auth.py",
+          "atlas/exports.py",
+          "atlas/legacy.py",
+          "atlas/models.py",
+          "atlas/queries.py",
+          "atlas/schemas.py",
+          "atlas/sdk.py",
+          "docs/current-api.md",
+          "tests/test_amounts.py"
+        ]
+      }
+    ],
+    "contract_hash": "f1a6c94f8c6f18ef882c1f61d3aa9e8e926a97479c811b0c42c105a8d3456cf6",
+    "snapshot_fingerprint": "9d141eb3600b73b895d25b2f639e4e2fcf3be260589898bce9d261240fa013c2",
+    "scope": "Owned synthetic repository, restricted identifier migration, isolated temporary copies. No working checkout or GitHub files changed.",
+    "comparison_note": "First two arms use the same patch generator and file-count budget. Reference selection/patch is a labelled control, not AI performance.",
+    "meta_usage": {
+      "input_tokens": 1416,
+      "output_tokens": 6958,
+      "cached_tokens": 0,
+      "calls": 2,
+      "failures": 0,
+      "usd": 0.0313415
+    }
+  },
+  "provenance": {
+    "date": "2026-11-07",
+    "selector_model": "subq-snap-1.1",
+    "patch_model": "muse-spark-1.3",
+    "runs": 1,
+    "scope": "Single owned synthetic fixture and restricted identifier migration; not a general coding benchmark. The lexical baseline is deliberately simple. Reference arm is not AI performance.",
+    "total_pipeline_savings_measured": false
+  }
+}

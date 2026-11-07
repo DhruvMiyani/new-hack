@@ -4,6 +4,12 @@
 
 [Open the local app](http://localhost:8765) · [Local setup and GCP connection](WORKBENCH.md)
 
+**New: [Repository lab](http://localhost:8765/#repository).** Connect a public GitHub
+repo or local Git snapshot, send full eligible source to SubQ, and draft a Meta
+patch from its selected context. An owned 56-file migration tests the result with
+independent checks: one live run passed **14/14 with SubQ context versus 4/14 with
+matched-size keyword context**. See [setup, evidence, and limits](CONTEXT.md).
+
 ![Blindspot security workbench](docs/workbench.jpg)
 
 Inspect cloud-exposure and permission changes, reproduce the failed access
@@ -31,7 +37,7 @@ GCP connector and optional model-mode screenshot input.
 See [workbench setup and scope](WORKBENCH.md).
 
 **New security workflow:** reproduce public-storage exposure, administrator
-escalation, and revoked-employee access; propose a repair and rerun frozen
+escalation, and staging-to-production access; propose a repair and rerun frozen
 independent checks. Start with
 `.venv/bin/python verify.py security --offline --repair`.
 See [the security workflow](SECURITY.md) for Meta/SubQ mode and ASI:One cards.
@@ -107,7 +113,7 @@ cp .env.example .env            # all keys optional
 
 .venv/bin/python verify.py run --offline      # the core result, no API calls
 .venv/bin/python verify.py status             # which providers are configured
-.venv/bin/python -m pytest tests/ -q          # 174 tests
+.venv/bin/python -m pytest tests/ -q
 ```
 
 ### The six experiments

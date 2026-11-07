@@ -1,6 +1,7 @@
 """Full-context coverage, immutable source loading, and executable migration controls."""
 import io
 import json
+import subprocess
 import tarfile
 
 import pytest
@@ -8,7 +9,7 @@ import pytest
 from blindspot.providers import Answer, DecisionResult
 from blindspot.repository import (
     DEFAULT_TASK, RepositoryError, Snapshot, context, curate, load_demo,
-    load_github, make_snapshot,
+    load_github, load_local, make_snapshot, propose_change,
 )
 from blindspot.context_benchmark import (
     REQUIRED_EDITS, benchmark, execute_acceptance, validate_edits,
@@ -183,3 +184,67 @@ def test_http_workflow_uses_server_stored_selection_not_client_claims():
     assert result["arms"][-1]["verdict"] == "PASS"
     with pytest.raises(RepositoryError, match="before"):
         perform_action("/api/repository/benchmark", {"id": loaded["id"], "selection_id": "forged", "generator": "reference"})
+
+
+class MuseStub:
+    available = True
+    model = "stub-not-a-live-result"
+
+    def __init__(self, edits):
+        self.edits = edits
+        self.calls = []
+
+    def complete(self, system, user, **kwargs):
+        self.calls.append((system, user))
+        return json.dumps(self.edits)
+
+
+def test_real_repo_draft_is_selected_only_unverified_and_applyable(tmp_path):
+    original = {"app.py": "value = 1", "other.py": "not_sent_to_patcher = True\n"}
+    snapshot = Snapshot("real-repo", "sha", original, [])
+    selection = {"source_fingerprint": snapshot.fingerprint, "selected": ["app.py"], "task": "Set value to two"}
+    muse = MuseStub([{"file": "app.py", "old": "value = 1", "new": "value = 2"}])
+    report = propose_change(snapshot, selection, muse=muse)
+    assert report["verdict"] == "UNVERIFIED" and report["changed_files"] == ["app.py"]
+    assert snapshot.files == original
+    assert "not_sent_to_patcher" not in muse.calls[0][1]
+    assert "\\ No newline at end of file" in report["diff"]
+    (tmp_path / "app.py").write_text(original["app.py"])
+    result = subprocess.run(["git", "apply", "--check", "-"], input=report["diff"], text=True, capture_output=True, cwd=tmp_path)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("edits,match", [
+    ([{"file": "other.py", "old": "x", "new": "y"}], "outside"),
+    ([{"file": "app.py", "old": "missing", "new": "y"}], "missing or ambiguous"),
+    ([{"file": "app.py", "old": "value", "new": "value"}], "no source changes"),
+    ([{"file": "app.py", "old": "value", "new": "x", "command": "ignored"}], "shape"),
+])
+def test_real_repo_patch_rejects_unusable_or_unselected_edits(edits, match):
+    snapshot = Snapshot("real-repo", "sha", {"app.py": "value = 1\n", "other.py": "x\n"}, [])
+    selection = {"source_fingerprint": snapshot.fingerprint, "selected": ["app.py"], "task": "Change value"}
+    with pytest.raises(RepositoryError, match=match):
+        propose_change(snapshot, selection, muse=MuseStub(edits))
+
+
+def test_meta_missing_key_does_not_return_a_reference_patch():
+    snapshot = load_demo()
+    muse = MuseStub([])
+    muse.available = False
+    with pytest.raises(RepositoryError, match="not configured"):
+        propose_change(snapshot, reference_selection(snapshot), muse=muse)
+    assert not muse.calls
+
+
+def test_local_snapshot_reads_commit_not_modified_working_copy(tmp_path):
+    def git(*args):
+        subprocess.run(["git", "-C", str(tmp_path), *args], check=True, capture_output=True)
+    git("init")
+    (tmp_path / "app.py").write_text("committed = True\n")
+    (tmp_path / ".env").write_text("SECRET=never_send\n")
+    git("add", ".")
+    git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "fixture")
+    (tmp_path / "app.py").write_text("working_copy = True\n")
+    snapshot = load_local(tmp_path)
+    assert snapshot.files == {"app.py": "committed = True\n"}
+    assert any(e["path"] == ".env" for e in snapshot.excluded)
