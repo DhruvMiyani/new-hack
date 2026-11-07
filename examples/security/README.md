@@ -17,11 +17,11 @@ Run from the repository root:
 .venv/bin/python verify.py security --offline
 .venv/bin/python verify.py security --scenario public-storage --offline --repair
 .venv/bin/python verify.py security --scenario privilege-escalation --offline --repair
-.venv/bin/python verify.py security --scenario revoked-access --offline --repair
+.venv/bin/python verify.py security --scenario environment-leak --offline --repair
 .venv/bin/python verify.py security --scenario clean --offline
 ```
 
-The default scenario combines all three defects. Omit `--offline` and pass
+The default scenario combines all four defects. Omit `--offline` and pass
 `--models` to ask SubQ to rank risk across all supplied artifacts and Meta to
 propose a configuration repair. Unavailable models are reported explicitly;
 only executed checks determine the verdict. `--offline --repair` uses a labelled

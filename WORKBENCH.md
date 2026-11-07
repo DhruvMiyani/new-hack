@@ -13,7 +13,7 @@ cross-origin actions. It serves only `web/dist/`, never the repository or `.env`
 
 The primary workflow is **inspect change → execute probes → inspect evidence →
 verify a repair**. Three scenarios cover public storage, privilege escalation,
-and revoked employee access. A clean control demonstrates preserved legitimate
+and staging-to-production access. A clean control demonstrates preserved legitimate
 access. Evidence can be exported as JSON.
 
 Local mode calls the Python verifier afresh. Offline repairs are labelled as

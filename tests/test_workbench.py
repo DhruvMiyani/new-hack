@@ -131,7 +131,7 @@ def test_workbench_http_executes_before_after_instead_of_replaying():
             with urllib.request.urlopen(req) as res:
                 evidence = json.load(res)
             assert evidence["final_verdict"] == verdict
-            assert len(evidence["observations"]) == 24
+            assert len(evidence["observations"]) == 56
 
 
 def test_workbench_blocks_cross_origin_actions_and_dns_rebinding():

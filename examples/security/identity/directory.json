@@ -1,8 +1,9 @@
 {
   "users": [
-    {"id": "alice", "active": true, "role": "member"},
-    {"id": "avery", "active": true, "role": "admin"},
-    {"id": "former-employee", "active": false, "role": "member"},
-    {"id": "demoted-admin", "active": true, "role": "member"}
+    {"id": "alice", "active": true, "role": "member", "environment": "production"},
+    {"id": "avery", "active": true, "role": "admin", "environment": "production"},
+    {"id": "former-employee", "active": false, "role": "member", "environment": "production"},
+    {"id": "demoted-admin", "active": true, "role": "member", "environment": "production"},
+    {"id": "staging-contractor", "active": true, "role": "member", "environment": "staging"}
   ]
 }

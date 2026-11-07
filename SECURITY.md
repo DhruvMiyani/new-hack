@@ -4,7 +4,7 @@ This workflow reproduces three high-impact configuration failures:
 
 1. **Private storage becomes public**, exposing documents and a fictional credential object.
 2. **A member gains administrator access**, through self-assigned roles or stale administrator claims.
-3. **A former employee retains access**, because the application skips the current directory's active check.
+3. **A staging-only contractor reads production backups**, because an authorization change drops the environment check. The repair must retain legitimate staging access.
 
 It is an executable **local lab**, not a scan of an AWS account or a complete
 implementation of any cloud provider's IAM. No real secrets are included and
@@ -22,12 +22,12 @@ From the repository root:
 
 The first command exits **1** after reproducing failures. The second proposes
 an explicitly labelled deterministic repair in memory, then reruns the same
-24 frozen checks and exits **0** when all pass. The clean control passes without
+56 frozen checks and exits **0** when all pass. The clean control passes without
 repair. Invalid inputs or an unavailable/invalid model repair exit **2** for
 INCONCLUSIVE. JSON evidence is available with `--json`.
 
 Individual scenarios: `public-storage`, `privilege-escalation`, and
-`revoked-access`. Default: `combined`.
+`environment-leak`. The older `revoked-access` CLI scenario remains available. Default: `combined`.
 
 ## Models
 
@@ -55,7 +55,7 @@ Agentverse profile / ASI:One conversation:
 
 ```text
 security
-security revoked-access offline
+security environment-leak offline
 security combined repair models
 ```
 
@@ -74,7 +74,7 @@ round trip still require the running agent and the user's connected account.
 
 This reads the supplied configuration **as-is**; it does not inject demo defects.
 Use [the example bundle](examples/security/) as the format reference. The
-supported contract is intentionally limited to the member/admin role model.
+supported contract is intentionally limited to the member/admin role model with production/staging boundaries.
 Unknown settings, uncovered buckets, missing artifacts, symlinked inputs,
 and oversized bundles are rejected rather than silently approved.
 
@@ -86,7 +86,8 @@ is rejected, never silently truncated. All required artifacts are mandatory.
 
 The oracle is compiled from policy plus authoritative identities and sessions
 before candidate configuration is evaluated. It checks anonymous, unknown,
-active member, current admin, former employee, and demoted-admin access.
+active member, current admin, former employee, demoted admin, and staging-only
+contractor access across production and staging resources.
 Legitimate member reads and admin operations must continue working, so a
 deny-everything repair fails. A privilege-escalation probe performs role
 assignment in an isolated copy and then executes an administrator request.

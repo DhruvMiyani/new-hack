@@ -75,7 +75,7 @@ async def handle_security_text(ctx, sender, text, say):
         return False
     known = set(SCENARIOS) | {"security", "repair", "models", "offline"}
     if set(words) - known or ("models" in words and "offline" in words):
-        await ctx.send(sender, say("Use `security [combined|public-storage|privilege-escalation|revoked-access|clean] [repair] [models|offline]`."))
+        await ctx.send(sender, say("Use `security [combined|public-storage|privilege-escalation|environment-leak|revoked-access|clean] [repair] [models|offline]`."))
         return True
     scenarios = [word for word in words if word in SCENARIOS]
     if len(scenarios) > 1:

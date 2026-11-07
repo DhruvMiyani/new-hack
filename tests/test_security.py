@@ -54,6 +54,38 @@ def test_contract_is_independent_of_candidate_settings():
     assert compile_contract(base) == compile_contract(scenario_bundle(base, "combined"))
 
 
+def test_staging_contractor_cannot_read_production_but_keeps_staging_access_after_repair():
+    report = run_security("environment-leak", repair=True)
+    production = next(o for o in report.observations if o.probe.actor == "staging-contractor"
+                      and o.probe.resource == "production-backups" and o.probe.action == "read_document")
+    assert production.allowed and not production.probe.expected_allowed
+    assert "identity=staging, resource=production" in " ".join(production.trace)
+    assert report.verdict == "BLOCK" and report.repair_verdict == "PASS"
+    after = {(o.probe.resource, o.probe.actor, o.probe.action): o for o in report.repaired_observations}
+    assert not after[("production-backups", "staging-contractor", "read_document")].allowed
+    assert after[("staging-backups", "staging-contractor", "read_document")].allowed
+    assert after[("production-backups", "alice", "read_document")].allowed
+    assert [o.probe for o in report.observations] == [o.probe for o in report.repaired_observations]
+
+
+def test_denying_all_staging_reads_cannot_count_as_environment_fix():
+    base = load_bundle()
+    candidate = scenario_bundle(base, "environment-leak")
+    repaired = apply_repair(candidate, [
+        {"file": ACCESS, "pointer": "/enforce_environment", "value": True},
+        {"file": STORAGE, "pointer": "/buckets/1/read_roles", "value": []},
+    ])
+    observations = evaluate(repaired, compile_contract(base))
+    contractor = next(o for o in observations if o.probe.resource == "staging-backups"
+                      and o.probe.actor == "staging-contractor" and o.probe.action == "read_document")
+    assert contractor.probe.expected_allowed and not contractor.passed
+
+
+def test_model_repair_cannot_change_environment_assignments():
+    with pytest.raises(BundleError):
+        apply_repair(load_bundle(), [{"file": STORAGE, "pointer": "/buckets/0/environment", "value": "staging"}])
+
+
 def test_privilege_transition_runs_without_contaminating_other_probes():
     bundle = scenario_bundle(load_bundle(), "privilege-escalation")
     before = copy.deepcopy(bundle)
@@ -221,7 +253,7 @@ def test_asi_chat_runs_checks_and_repairs_from_a_card_without_leaving_chat():
     selection = json.dumps({"action": "security_repair", "run_id": SESSIONS[sender]["run_id"]})
     assert asyncio.run(handle_security_text(ctx, sender, selection, say))
     assert "-> PASS" in ctx.messages[-1]["text"]
-    assert "SAME 24" in ctx.messages[-1]["text"]
+    assert "SAME 56" in ctx.messages[-1]["text"]
     # A card from the previous run cannot launch another job.
     asyncio.run(handle_security_text(ctx, sender, selection, say))
     assert "expired" in ctx.messages[-1]["text"]
