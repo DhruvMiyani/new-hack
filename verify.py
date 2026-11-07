@@ -21,6 +21,7 @@ from blindspot.providers import MetaMuse, SubQSnap, status  # noqa: E402
 from blindspot.calibration import calibrate, render_calibration  # noqa: E402
 from blindspot.localize import localise, render_localisation  # noqa: E402
 from blindspot.matrix import render_matrix, run_matrix     # noqa: E402
+from blindspot.queue_triage import build_queue, render_triage, triage  # noqa: E402
 from blindspot.providers import AUTHOR_MODELS              # noqa: E402
 from blindspot.report import render_aggregate, render_run   # noqa: E402
 from blindspot.tasks import TASKS         # noqa: E402
@@ -245,6 +246,58 @@ def cmd_localize(args) -> int:
     return 0
 
 
+def cmd_queue(args) -> int:
+    """Triage a merge queue: context curation + multimodal + ranking, scored."""
+    import pathlib
+
+    from blindspot.equivalence import partition
+    from blindspot.mutate import generate
+
+    snap = SubQSnap()
+    if not snap.available:
+        print("This needs a SubQ key. Get 100M free tokens at console.subq.ai,")
+        print("set SUBQ_API_KEY in .env, then re-run.")
+        return 2
+
+    tasks = [TASKS[args.task]] if args.task in TASKS else list(TASKS.values())
+
+    pairs = []
+    for task in tasks:
+        real, _, table = partition(
+            task.reference, generate(task.reference), task.target, args.trials
+        )
+        if args.max_per_task:
+            real = real[: args.max_per_task]
+        pairs.append((task, real, table, task.reference))
+
+    items = build_queue(
+        pairs, clean_per_task=args.clean, multimodal_every=args.multimodal_every
+    )
+    print(f"queue: {len(items)} change(s), {sum(1 for i in items if i.is_defective)} defective "
+          f"(ground truth, each with a witness)")
+
+    # Context curation: offer the real files of this repo as the risk surface,
+    # the way the "which files should change?" demo sweeps a whole project.
+    file_options = None
+    if args.curate:
+        files = sorted(pathlib.Path("codegate").glob("*.py"))
+        file_options = {
+            p.name: (p.read_text().strip().splitlines() or [""])[0][:160]
+            for p in files
+            if p.name != "__init__.py"
+        }
+        print(f"context curation: choosing a risk surface among {len(file_options)} repo file(s)")
+    if args.multimodal_every:
+        print(f"multimodal: every {args.multimodal_every}th change arrives as a screenshot")
+    print()
+
+    report = triage(items, snap=snap, file_options=file_options)
+    print(render_triage(report))
+    print(f"\nsubq usage: {snap.usage.input_tokens} input tokens = "
+          f"${snap.usage.input_tokens * 0.04 / 1_000_000:.4f} (output free)")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         prog="verify", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -290,6 +343,19 @@ def main() -> int:
     loc.add_argument("--multimodal", action="store_true",
                      help="also ask with the context as a screenshot, to compare modalities")
     loc.set_defaults(fn=cmd_localize)
+
+    q = sub.add_parser(
+        "queue", help="triage a merge queue -- curation + multimodal + ranking, all scored"
+    )
+    q.add_argument("--task", help=f"one of: {', '.join(TASKS)}")
+    q.add_argument("--trials", type=int, default=400)
+    q.add_argument("--clean", type=int, default=2, help="clean changes per task (default 2)")
+    q.add_argument("--max-per-task", type=int, default=4, help="cap defective changes per task")
+    q.add_argument("--curate", action="store_true",
+                   help="also ask which repo file each change puts at risk")
+    q.add_argument("--multimodal-every", type=int, default=0,
+                   help="send every Nth change as a screenshot instead of text")
+    q.set_defaults(fn=cmd_queue)
 
     sub.add_parser("status", help="show provider configuration").set_defaults(fn=cmd_status)
 

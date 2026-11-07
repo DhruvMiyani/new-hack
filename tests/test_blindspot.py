@@ -791,3 +791,147 @@ def test_subq_rejects_oversized_image_payloads():
     too_many = [{"mediaType": "image/png", "base64": "AA"} for _ in range(5)]
     res = snap.decide("state", {"q": noul("x", "t", "f")}, images=too_many)
     assert not res.ok and "too many images" in res.error
+
+
+# --------------------------------------------------------------------------- #
+# merge-queue triage: the three showcases combined, scored against truth
+# --------------------------------------------------------------------------- #
+
+
+class _TriagingSnap:
+    """Scores items by a rule we choose, so the ranking metrics can be checked."""
+
+    available = True
+
+    def __init__(self, oracle=True, constant=None):
+        from blindspot.providers import Usage
+
+        self.usage = Usage()
+        self.oracle = oracle          # rank defective items first
+        self.constant = constant      # or give everything the same score
+        self.images_seen = 0
+        self.states = []
+
+    def decide(self, state, questions, timeout=90.0, images=None):
+        from blindspot.providers import Answer, DecisionResult
+
+        self.states.append(state)
+        if images:
+            self.images_seen += 1
+        self.usage.add(1500, 0, 0, "")
+        if self.constant is not None:
+            p = self.constant
+        else:
+            # the stub peeks at the marker build_queue puts in the title
+            p = 0.95 if "no functional change" not in state else 0.05
+            if not self.oracle:
+                p = 1 - p
+        answers = {
+            "is_blocking": Answer("is_blocking", "noul", p),
+            "priority": Answer("priority", "score", 3 if p > 0.5 else 0, confidence=0.8),
+        }
+        if "risk_surface" in questions:
+            k = list(questions["risk_surface"]["criteria"])[0]
+            answers["risk_surface"] = Answer("risk_surface", "choice", k, confidence=0.6)
+        return DecisionResult(answers=answers, input_tokens=1500)
+
+
+def _queue(clean=3, cap=3, multimodal_every=0):
+    from blindspot.queue_triage import build_queue
+
+    real, _, table = partition(CORRECT, generate(CORRECT), "allocate", trials=300)
+    return build_queue(
+        [(TASKS["allocate"], real[:cap], table, CORRECT)],
+        clean_per_task=clean,
+        multimodal_every=multimodal_every,
+    )
+
+
+def test_queue_mixes_defective_and_clean_changes():
+    items = _queue(clean=3, cap=3)
+    assert sum(1 for i in items if i.is_defective) == 3
+    assert sum(1 for i in items if not i.is_defective) == 3
+    # every defective item must carry proof it is really broken
+    assert all(i.witness for i in items if i.is_defective)
+
+
+def test_good_triage_beats_first_come_first_served():
+    from blindspot.queue_triage import triage
+
+    items = _queue(clean=4, cap=3)
+    # put the clean ones first so FIFO is genuinely slow
+    items.sort(key=lambda i: i.is_defective)
+    rep = triage(items, snap=_TriagingSnap(oracle=True), seeds=5)
+
+    tri, fifo = rep.ordering("triaged"), rep.ordering("first-come-first-served")
+    assert tri and fifo
+    assert tri.to_first_defect < fifo.to_first_defect
+    assert tri.precision_at(3) == 1.0
+
+
+def test_bad_triage_is_reported_as_worse_not_hidden():
+    """An inverted ranking must show up as slower, not get quietly smoothed."""
+    from blindspot.queue_triage import triage
+
+    items = _queue(clean=3, cap=3)
+    items.sort(key=lambda i: not i.is_defective)   # defective first => FIFO is ideal
+    rep = triage(items, snap=_TriagingSnap(oracle=False), seeds=5)
+
+    tri, fifo = rep.ordering("triaged"), rep.ordering("first-come-first-served")
+    assert tri.to_first_defect > fifo.to_first_defect
+    out = __import__("blindspot.queue_triage", fromlist=["render_triage"]).render_triage(rep)
+    assert "SLOWER" in out
+
+
+def test_constant_scores_do_not_invent_an_ordering_advantage():
+    from blindspot.queue_triage import triage
+
+    items = _queue(clean=3, cap=3)
+    rep = triage(items, snap=_TriagingSnap(constant=0.5), seeds=5)
+    tri = rep.ordering("triaged")
+    # every rank_key is equal, so sorting is stable and matches arrival order
+    assert [i.item_id for i in tri.items] == [i.item_id for i in rep.items]
+
+
+def test_triage_applies_the_written_merge_policy():
+    from blindspot.queue_triage import MERGE_POLICY, triage
+
+    snap = _TriagingSnap()
+    triage(_queue(clean=1, cap=2), snap=snap, seeds=3)
+    assert snap.states, "expected decision calls"
+    for st in snap.states:
+        assert "MERGE POLICY" in st, "the policy must be cited in every decision"
+        assert "Verification capacity is limited" in st
+
+
+def test_queue_triage_supports_context_curation_and_images():
+    from blindspot.queue_triage import triage
+
+    snap = _TriagingSnap()
+    items = _queue(clean=1, cap=2, multimodal_every=1)
+    rep = triage(items, snap=snap, file_options={"a.py": "first", "b.py": "second"}, seeds=3)
+    assert snap.images_seen > 0, "screenshots must reach the API"
+    assert rep.triaged
+
+
+def test_misjudged_items_are_surfaced():
+    from blindspot.queue_triage import render_triage, triage
+
+    items = _queue(clean=2, cap=2)
+    rep = triage(items, snap=_TriagingSnap(oracle=False), seeds=3)
+    out = render_triage(rep)
+    assert "misjudged" in out
+
+
+def test_queue_without_a_key_explains_itself():
+    from blindspot.providers import SubQSnap
+    from blindspot.queue_triage import triage
+
+    class _Absent(SubQSnap):
+        @property
+        def available(self):
+            return False
+
+    rep = triage(_queue(clean=1, cap=1), snap=_Absent())
+    assert not rep.orderings
+    assert any("SUBQ_API_KEY" in n for n in rep.notes)
