@@ -336,6 +336,28 @@ def cmd_haystack(args) -> int:
     return 0
 
 
+def cmd_security(args) -> int:
+    """Reproduce storage exposure and permission regressions without cloud writes."""
+    import json
+    from pathlib import Path
+    from blindspot.security import BundleError, DEFAULT_BUNDLE, render_security, run_security
+
+    try:
+        report = run_security(
+            args.scenario, root=Path(args.bundle) if args.bundle else DEFAULT_BUNDLE,
+            repair=args.repair, use_models=args.models,
+            use_bundle_as_is=bool(args.bundle),
+        )
+    except (BundleError, OSError, ValueError, TypeError, KeyError) as exc:
+        if args.json:
+            print(json.dumps({"final_verdict": "INCONCLUSIVE", "error": str(exc)}))
+        else:
+            print(f"BLINDSPOT SECURITY — INCONCLUSIVE\n{exc}", file=sys.stderr)
+        return 2
+    print(json.dumps(report.to_dict(), indent=2) if args.json else render_security(report))
+    return {"PASS": 0, "BLOCK": 1, "INCONCLUSIVE": 2}[report.final_verdict]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         prog="verify", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -403,6 +425,17 @@ def main() -> int:
     hay.add_argument("--depths", help="comma-separated needle depths 0.0-1.0")
     hay.add_argument("--trials", type=int, default=400)
     hay.set_defaults(fn=cmd_haystack)
+
+    sec = sub.add_parser("security", help="verify private storage, admin permissions, and revoked access")
+    from blindspot.security import SCENARIOS
+    sec.add_argument("--scenario", choices=SCENARIOS, default="combined")
+    sec.add_argument("--bundle", help="assess this local bundle as-is instead of injecting a demo defect")
+    sec.add_argument("--repair", action="store_true", help="propose and verify a repair in memory")
+    modes = sec.add_mutually_exclusive_group()
+    modes.add_argument("--models", action="store_true", help="use SubQ decisions and Meta repair generation")
+    modes.add_argument("--offline", action="store_true", help="no API calls (default)")
+    sec.add_argument("--json", action="store_true", help="emit machine-readable evidence and gate decision")
+    sec.set_defaults(fn=cmd_security)
 
     sub.add_parser("status", help="show provider configuration").set_defaults(fn=cmd_status)
 

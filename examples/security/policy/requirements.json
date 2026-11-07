@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "description": "Customer documents are private. Active members can read documents. Only current active administrators may read credentials, administer users, or assign roles. Disabled employees and unknown identities have no access. Session role claims are historical evidence, never the authority for current permissions.",
+  "protected_buckets": ["customer-documents"],
+  "document_roles": ["member", "admin"],
+  "privileged_roles": ["admin"]
+}

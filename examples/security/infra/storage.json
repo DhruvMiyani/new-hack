@@ -1,0 +1,5 @@
+{
+  "buckets": [
+    {"id": "customer-documents", "public_read": false, "read_roles": ["member", "admin"], "credential_roles": ["admin"]}
+  ]
+}

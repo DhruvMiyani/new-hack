@@ -1,0 +1,8 @@
+{
+  "users": [
+    {"id": "alice", "active": true, "role": "member"},
+    {"id": "avery", "active": true, "role": "admin"},
+    {"id": "former-employee", "active": false, "role": "member"},
+    {"id": "demoted-admin", "active": true, "role": "member"}
+  ]
+}

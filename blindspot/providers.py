@@ -105,13 +105,15 @@ class Usage:
 class MetaMuse:
     """OpenAI-compatible chat against Meta Model API."""
 
-    def __init__(self, model: str | None = None, base_url: str | None = None):
+    def __init__(self, model: str | None = None, base_url: str | None = None,
+                 timeout: float | None = None):
         self.model = model or META_MODEL
         self.base_url = base_url or META_BASE_URL
         self.usage = Usage()
         self.notes: list[str] = []
         self.last_error = ""
         self._client = None
+        self.timeout = timeout
 
     @property
     def available(self) -> bool:
@@ -121,7 +123,8 @@ class MetaMuse:
         if self._client is None:
             from openai import OpenAI
 
-            self._client = OpenAI(base_url=self.base_url, api_key=meta_key())
+            options = {"timeout": self.timeout, "max_retries": 0} if self.timeout is not None else {}
+            self._client = OpenAI(base_url=self.base_url, api_key=meta_key(), **options)
         return self._client
 
     def complete(
