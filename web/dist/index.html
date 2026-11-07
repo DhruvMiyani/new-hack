@@ -5,7 +5,7 @@
   <meta name="theme-color" content="#13221e">
   <meta name="description" content="Reproduce cloud exposure and permission regressions. Inspect the evidence, verify a repair, and preserve legitimate access.">
   <title>Blindspot — Security Workbench</title>
-  <link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
+  <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/context.css"><script src="/app.js" defer></script><script src="/context.js" defer></script>
 </head>
 <body>
 <aside class="sidebar">
@@ -14,6 +14,7 @@
   <nav aria-label="Main navigation">
     <button class="nav-item active" id="workbench-nav"><span data-icon="layers"></span>Security workbench<span class="nav-count">3</span></button>
     <button class="nav-item" id="ledger-nav"><span data-icon="file"></span>Evidence ledger</button>
+    <button class="nav-item" id="context-nav"><span data-icon="folder"></span>Repository lab<span class="nav-count">NEW</span></button>
     <button class="nav-item" id="gcp-nav"><span data-icon="cloud"></span>Google Cloud<span class="tiny-dot"></span></button>
   </nav>
   <div class="sidebar-line"></div>
@@ -51,6 +52,18 @@
       </div>
     </section>
     <section class="proof-strip"><div><span data-icon="terminal"></span><strong>Executed, not assumed</strong><span>Actual policy decisions</span></div><div><span data-icon="lock"></span><strong>Independent by design</strong><span>Frozen access requirements</span></div><div><span data-icon="refresh"></span><strong>Repair, then recheck</strong><span>Identical tests before and after</span></div></section>
+    <section id="repository-lab" hidden>
+      <div class="repo-heading"><div class="eyebrow">LONG CONTEXT · MEASURABLE CHANGES</div><h1>The whole codebase.<br><span>Find what the change touches.</span></h1><p>Give the selector a task and every eligible source file.<br>Then test whether its context is enough to complete the migration.</p></div>
+      <div class="repo-source-card"><div class="repo-source-fields"><label>Source<select id="repo-source"><option value="demo">Atlas migration fixture</option><option value="github">Public GitHub repository</option><option value="local">Local Git snapshot</option></select></label><label id="repo-url-field" hidden>GitHub URL<input id="repo-url" value="https://github.com/DhruvMiyani/new-hack" placeholder="https://github.com/owner/repo"></label><label id="repo-path-field" hidden>Checkout root<input id="repo-path" placeholder="/absolute/path/to/repository"></label><label id="repo-ref-field" hidden>Revision<input id="repo-ref" value="HEAD" placeholder="branch or commit SHA"></label><button id="repo-load" class="repo-button primary">Load repository <span>↗</span></button></div><div id="repo-source-note" class="repo-caption">Owned fixture · no model calls until you curate · no changes to your working copy</div></div>
+      <div class="repo-task-card"><label for="repo-task">WHAT SHOULD CHANGE?</label><textarea id="repo-task" rows="4" placeholder="Describe a change that spans the repository…"></textarea><div class="repo-run-controls"><label>Selector<select id="repo-method"><option value="subq">SubQ Snap · full context</option><option value="keyword">Keyword baseline · offline</option></select></label><label>SubQ threshold<input id="repo-threshold" type="number" min="0" max="1" step="0.05" value="0.5"></label><label>Baseline file budget<input id="repo-top-k" type="number" min="1" max="40" value="10"></label><button id="repo-curate" class="repo-button primary" disabled>Curate context <span>→</span></button></div></div>
+      <div id="repo-status" class="repo-status" role="status" aria-live="polite">Load the fixture or connect a repository to begin.</div>
+      <div class="repo-metrics"><div><small>ELIGIBLE SOURCE FILES</small><strong id="repo-files-count">—</strong></div><div><small>FULL REQUEST CONTEXT</small><strong id="repo-context-size">—</strong><span id="repo-token-note">Estimated before inference</span></div><div><small>FILES SELECTED</small><strong id="repo-selected-count">—</strong></div><div><small>SELECTOR TIME</small><strong id="repo-latency">—</strong></div></div>
+      <div class="repo-code-layout"><div class="repo-grid-panel"><div class="repo-grid-heading"><span>REPOSITORY → DECISION MODEL</span><button id="repo-download-context" disabled>Export selected context ↗</button></div><div id="repo-file-grid" class="repo-file-grid"><div class="repo-grid-empty">Your source files will appear here.</div></div><div class="repo-grid-footer"><span><i></i> Selected for the change</span><span id="repo-grid-method">No scores yet</span></div></div><div class="repo-inspect-panel"><div id="repo-file-name">Inspect a file</div><pre id="repo-file-content">Click a source tile to inspect the full content. The selector receives complete eligible files, not filenames alone.</pre><div id="repo-range-note">Source is read-only. Line-range hints appear after curation.</div></div></div>
+      <details class="repo-exclusions"><summary id="repo-exclusions-title">Snapshot coverage and exclusions</summary><pre id="repo-exclusions-content">No snapshot loaded.</pre></details>
+      <div class="repo-experiment"><div><div class="eyebrow">DOES THE CONTEXT ACTUALLY HELP?</div><h2>Same task. Same checks.<br>Different context.</h2><p>Apply the migration in isolated copies. Compare the selected context with keyword search at the same file-count budget and a labelled reference control.</p></div><div class="repo-experiment-actions"><label>Patch generator<select id="repo-generator"><option value="reference">Reference patcher · offline</option><option value="meta">Meta Muse · live generation</option></select></label><button class="repo-button primary" id="repo-benchmark" disabled>Run migration experiment <span>↗</span></button><small id="repo-experiment-note">Executable tests are available for the owned Atlas fixture. Downloaded repository code is never executed.</small></div></div>
+      <div class="repo-draft-row"><span>Real repository? Draft a change from the selected source. It stays unverified until you review and test it.</span><button id="repo-propose" class="repo-button" disabled>Draft Meta patch ↗</button></div>
+      <div id="repo-benchmark-output" hidden></div><div id="repo-patch-area" hidden><div class="repo-patch-header"><strong>Proposed multi-file patch</strong><button id="repo-download-patch" class="repo-button">Download .patch ↗</button></div><pre id="repo-patch"></pre></div>
+    </section>
     <footer><span>BLINDSPOT <i>✳</i> Built for the boundary cases.</span><button id="scope-button">What does this prove? <span>↗</span></button></footer>
   </main>
 </div>

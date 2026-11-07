@@ -6,6 +6,9 @@ import base64
 import json
 import os
 import threading
+import time
+from collections import OrderedDict
+from uuid import uuid4
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -18,8 +21,53 @@ load_dotenv(ROOT / ".env")
 from blindspot.gcp import GCPError, inspect_gcp
 from blindspot.providers import MetaMuse, SubQSnap
 from blindspot.security import BundleError, SCENARIOS, run_security
+from blindspot.repository import DEFAULT_TASK, RepositoryError, curate, load_demo, load_github, load_local, propose_change
+from blindspot.context_benchmark import benchmark
 
 BUSY = threading.BoundedSemaphore(2)
+SNAPSHOTS = OrderedDict()
+SNAPSHOT_LOCK = threading.Lock()
+
+
+def repository_action(path, data):
+    if path == "/api/repository/load":
+        source = data.get("source", "demo")
+        if source == "demo":
+            snapshot = load_demo()
+        elif source == "github":
+            snapshot = load_github(data.get("url", ""), data.get("ref", "HEAD"))
+        elif source == "local":
+            snapshot = load_local(data.get("path", ""), data.get("ref", "HEAD"))
+        else:
+            raise RepositoryError("Choose demo, public GitHub, or a local Git checkout.")
+        key = uuid4().hex
+        with SNAPSHOT_LOCK:
+            while len(SNAPSHOTS) >= 8:
+                SNAPSHOTS.popitem(last=False)
+            SNAPSHOTS[key] = {"snapshot": snapshot, "created": time.monotonic(), "selections": {}}
+        return {"id": key, "default_task": DEFAULT_TASK if snapshot.demo else "", **snapshot.public()}
+    with SNAPSHOT_LOCK:
+        cached = SNAPSHOTS.get(data.get("id"))
+        if not cached or time.monotonic() - cached["created"] > 3600:
+            raise RepositoryError("Snapshot expired. Reload the repository.")
+    if path == "/api/repository/curate":
+        result = curate(cached["snapshot"], data.get("task", ""), method=data.get("method", "subq"),
+                        threshold=data.get("threshold", 0.5), top_k=data.get("top_k", 10))
+        selection_id = uuid4().hex
+        with SNAPSHOT_LOCK:
+            if len(cached["selections"]) >= 8:
+                del cached["selections"][next(iter(cached["selections"]))]
+            cached["selections"][selection_id] = result
+        return {"selection_id": selection_id, **result}
+    if path in ("/api/repository/benchmark", "/api/repository/propose"):
+        with SNAPSHOT_LOCK:
+            selection = cached["selections"].get(data.get("selection_id"))
+        if selection is None:
+            raise RepositoryError("Run context curation before the migration experiment.")
+        if path.endswith("/propose"):
+            return propose_change(cached["snapshot"], selection)
+        return benchmark(cached["snapshot"], selection, generator=data.get("generator", "reference"))
+    raise RepositoryError("Unknown repository action.")
 
 
 def validate_images(images):
@@ -48,6 +96,8 @@ def validate_images(images):
 def perform_action(path, data):
     if not isinstance(data, dict):
         raise ValueError("Expected a JSON object.")
+    if path.startswith("/api/repository/"):
+        return repository_action(path, data)
     if path == "/api/security":
         scenario = data.get("scenario", "combined")
         if scenario not in SCENARIOS or type(data.get("repair", False)) is not bool or type(data.get("models", False)) is not bool:
@@ -96,7 +146,7 @@ class Handler(SimpleHTTPRequestHandler):
         allowed_origins = (f"http://127.0.0.1:{self.server.server_port}", f"http://localhost:{self.server.server_port}")
         if not self._host_ok() or (origin and origin not in allowed_origins):
             return self.respond(403, {"error": "Local origin required."})
-        if self.path not in ("/api/security", "/api/gcp"):
+        if self.path not in ("/api/security", "/api/gcp", "/api/repository/load", "/api/repository/curate", "/api/repository/benchmark", "/api/repository/propose"):
             return self.respond(404, {"error": "Unknown action."})
         if self.headers.get("Content-Type", "").split(";")[0] != "application/json":
             return self.respond(415, {"error": "Send JSON."})

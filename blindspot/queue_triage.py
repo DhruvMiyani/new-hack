@@ -335,12 +335,19 @@ def build_queue(
     pairs: list[tuple[Task, list[Mutant], dict[str, Equivalence], str]],
     clean_per_task: int = 1,
     multimodal_every: int = 0,
+    arrival_seed: int | None = 7,
 ) -> list[QueueItem]:
     """Assemble a realistic queue: some changes broken, some genuinely fine.
 
     A queue of nothing but defects would make any ordering look good, so clean
     changes -- the untouched reference -- are mixed in and the triage has to
     tell them apart.
+
+    Arrival order is shuffled. Built in construction order every defective
+    change would land before every clean one, which makes first-come-first-
+    served accidentally optimal and the triage look worthless. Real queues do
+    not arrive sorted by brokenness. The seed keeps it reproducible; pass None
+    to keep construction order.
     """
     from .screenshot import context_image
 
@@ -377,4 +384,6 @@ def build_queue(
                     is_defective=False,
                 )
             )
+    if arrival_seed is not None:
+        random.Random(arrival_seed).shuffle(items)
     return items
