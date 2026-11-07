@@ -53,7 +53,8 @@ def test_live_inventory_never_claims_executed_access_without_a_probe():
     (404, 200, "INCONCLUSIVE"), (401, 200, "INCONCLUSIVE"),
     (403, 403, "INCONCLUSIVE"), (200, 404, "INCONCLUSIVE"),
 ])
-def test_cloud_verdict_requires_the_expected_identity_and_positive_control(actor_status, control_status, verdict):
+def test_cloud_verdict_requires_the_expected_identity_and_positive_control(actor_status, control_status, verdict, monkeypatch):
+    monkeypatch.setenv("GCP_STORAGE_BASE_URL", "https://storage-api.invalid")
     result = inspect_gcp("demo-project", "demo-bucket", actor=ACTOR, object_name="blindspot-canary.txt",
                          runner=runner, opener=opener_for(actor_status, control_status))
     assert result["verdict"] == verdict
@@ -95,7 +96,8 @@ def test_unscoped_or_command_like_cloud_inputs_never_reach_cli(project, bucket, 
         inspect_gcp(project, bucket, actor=actor, object_name=obj, runner=no_run)
 
 
-def test_cloud_calls_are_read_only_and_tokens_are_not_command_arguments():
+def test_cloud_calls_are_read_only_and_tokens_are_not_command_arguments(monkeypatch):
+    monkeypatch.setenv("GCP_STORAGE_BASE_URL", "https://storage-api.invalid")
     calls = []
     def record(args):
         calls.append(args)

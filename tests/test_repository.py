@@ -46,12 +46,13 @@ def archive(entries):
     return stream.getvalue()
 
 
-def test_github_snapshot_is_sha_pinned_and_never_extracted():
+def test_github_snapshot_is_sha_pinned_and_never_extracted(monkeypatch):
+    monkeypatch.setenv("GITHUB_API_BASE_URL", "https://github-api.invalid")
     calls = []
     sha = "a" * 40
     def download(url, limit):
         calls.append(url)
-        if "api.github.com" in url:
+        if "github-api.invalid" in url:
             return json.dumps({"sha": sha}).encode()
         return archive([("repo-sha/app.py", b"value=1"), ("repo-sha/.env", b"secret")])
     snapshot = load_github("https://github.com/owner/repo", "main", downloader=download)
@@ -65,9 +66,10 @@ def test_github_loader_rejects_other_destinations(url):
         load_github(url, downloader=lambda *a: pytest.fail("Invalid URL reached network"))
 
 
-def test_archive_traversal_is_rejected():
+def test_archive_traversal_is_rejected(monkeypatch):
+    monkeypatch.setenv("GITHUB_API_BASE_URL", "https://github-api.invalid")
     def download(url, limit):
-        return json.dumps({"sha": "a" * 40}).encode() if "api.github.com" in url else archive([("root/../outside.py", b"x=1")])
+        return json.dumps({"sha": "a" * 40}).encode() if "github-api.invalid" in url else archive([("root/../outside.py", b"x=1")])
     with pytest.raises(RepositoryError, match="Unsafe"):
         load_github("https://github.com/owner/repo", downloader=download)
 

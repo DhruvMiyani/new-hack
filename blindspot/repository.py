@@ -6,6 +6,7 @@ import difflib
 import io
 import json
 import math
+import os
 import re
 import subprocess
 import tarfile
@@ -157,8 +158,11 @@ def load_github(url, ref="HEAD", downloader=None):
         raise RepositoryError("Invalid repository name.")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_./-]{0,150}", ref) or ".." in ref:
         raise RepositoryError("Invalid GitHub revision.")
+    api = os.getenv("GITHUB_API_BASE_URL", "").strip().rstrip("/")
+    if not api:
+        raise RepositoryError("Configure GITHUB_API_BASE_URL to load a GitHub repository.")
     get = downloader or _download
-    commit = json.loads(get(f"https://api.github.com/repos/{owner}/{repo}/commits/{urllib.parse.quote(ref, safe='')}", 2_000_000))
+    commit = json.loads(get(f"{api}/repos/{owner}/{repo}/commits/{urllib.parse.quote(ref, safe='')}", 2_000_000))
     sha = commit.get("sha", "")
     if not re.fullmatch(r"[a-f0-9]{40}", sha):
         raise RepositoryError("GitHub did not return an immutable commit SHA.")

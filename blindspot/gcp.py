@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -52,8 +53,8 @@ def validate_target(project, bucket, actor="", object_name=""):
         raise GCPError("Provide both the test service account and canary object, or neither.")
 
 
-def _read_canary(token, bucket, name, opener):
-    url = "https://storage.googleapis.com/storage/v1/b/" + urllib.parse.quote(bucket, safe="")
+def _read_canary(token, bucket, name, opener, base_url):
+    url = f"{base_url}/b/" + urllib.parse.quote(bucket, safe="")
     url += "/o/" + urllib.parse.quote(name, safe="") + "?alt=media"
     request = urllib.request.Request(url, headers={"Authorization": "Bearer " + token})
     try:
@@ -119,13 +120,16 @@ def inspect_gcp(project, bucket, *, actor="", object_name="", runner=None, opene
                   "Configuration findings are review items, not reproduced exposures."],
     }
     if actor:
+        base_url = os.getenv("GCP_STORAGE_BASE_URL", "").strip().rstrip("/")
+        if not base_url:
+            raise GCPError("Configure GCP_STORAGE_BASE_URL to run a canary probe.")
         # Tokens stay in memory; never included in evidence, logs, or subprocess arguments.
         actor_token = runner(["auth", "print-access-token", f"--impersonate-service-account={actor}"])
         operator_token = runner(["auth", "print-access-token"])
         if not actor_token or not operator_token:
             raise GCPError("No usable credentials; no permission verdict issued.")
-        probe = _read_canary(actor_token, bucket, object_name, opener)
-        control = _read_canary(operator_token, bucket, object_name, opener)
+        probe = _read_canary(actor_token, bucket, object_name, opener, base_url)
+        control = _read_canary(operator_token, bucket, object_name, opener, base_url)
         report["probe"] = {"identity": actor, "object": object_name, "expected": "DENIED", **probe}
         report["control"] = {"identity": "locally signed-in operator", "expected": "GRANTED", **control}
         if control["access"] != "GRANTED" or probe["access"] == "INCONCLUSIVE":

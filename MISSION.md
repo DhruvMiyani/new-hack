@@ -15,8 +15,8 @@ Open [the mission](http://localhost:8765/). It uses fictional data and a local
 object-storage permission model. It does not connect to GCP, change cloud IAM,
 execute generated code, or read real customer files. A GCP account is not needed.
 
-Set `SUBQ_API_KEY` in the local `.env` and restart the server to enable live
-investigation. `SUBQ_MODEL=subq-snap-1.1` is the default. Keep the key on the
+Set `SUBQ_API_KEY` and `SUBQ_BASE_URL` in the local `.env` and restart the
+server to enable live investigation. `SUBQ_MODEL=subq-snap-1.1` is the default. Keep the key on the
 server; it must never appear in a browser or submitted evidence. No Meta key or
 other generative model is used by this mission.
 

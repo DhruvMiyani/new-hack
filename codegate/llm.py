@@ -12,7 +12,6 @@ import json
 import os
 
 MODEL = os.getenv("ASI_ONE_MODEL", "asi1-mini")
-BASE_URL = os.getenv("ASI_ONE_BASE_URL", "https://api.asi1.ai/v1")
 
 _client = None
 
@@ -23,7 +22,7 @@ PLACEHOLDERS = {"", "paste-your-asi1-key-here", "<your-api-key>", "your-api-key"
 def available() -> bool:
     """A placeholder left in .env is not a key -- say absent rather than enabled."""
     key = (os.getenv("ASI_ONE_API_KEY") or "").strip()
-    return bool(key) and key.lower() not in PLACEHOLDERS
+    return bool(key and os.getenv("ASI_ONE_BASE_URL", "").strip()) and key.lower() not in PLACEHOLDERS
 
 
 def _get_client():
@@ -31,7 +30,7 @@ def _get_client():
     if _client is None:
         from openai import OpenAI
 
-        _client = OpenAI(base_url=BASE_URL, api_key=os.environ["ASI_ONE_API_KEY"])
+        _client = OpenAI(base_url=os.environ["ASI_ONE_BASE_URL"].strip(), api_key=os.environ["ASI_ONE_API_KEY"])
     return _client
 
 

@@ -2,10 +2,10 @@
 
 Two sponsors, two genuinely different jobs:
 
-  Meta Muse (api.meta.ai/v1, OpenAI-compatible chat)
+  Meta Muse (OpenAI-compatible chat)
       Generates text, so it plays implementer and test author.
 
-  SubQ Snap (api.subq.ai/v1/systemone, Decisions API)
+  SubQ Snap (Decisions API)
       Generates *no* text at all -- output_tokens is always 0. It answers
       structured questions with labels, probabilities and confidence over up to
       384K tokens of context. So it is the adjudicator: it reads the whole repo
@@ -28,7 +28,6 @@ from dataclasses import dataclass, field
 # Meta Model API
 # --------------------------------------------------------------------------- #
 
-META_BASE_URL = os.getenv("META_BASE_URL", "https://api.meta.ai/v1")
 META_MODEL = os.getenv("META_MODEL", "muse-spark-1.3")
 
 # Published rates, USD per 1M tokens. Used only to report what a run cost --
@@ -108,7 +107,7 @@ class MetaMuse:
     def __init__(self, model: str | None = None, base_url: str | None = None,
                  timeout: float | None = None):
         self.model = model or META_MODEL
-        self.base_url = base_url or META_BASE_URL
+        self.base_url = base_url or _clean(os.getenv("META_BASE_URL"))
         self.usage = Usage()
         self.notes: list[str] = []
         self.last_error = ""
@@ -117,7 +116,7 @@ class MetaMuse:
 
     @property
     def available(self) -> bool:
-        return meta_key() is not None
+        return bool(self.base_url and meta_key())
 
     def _get_client(self):
         if self._client is None:
@@ -212,7 +211,6 @@ class MetaMuse:
 # SubQ Decisions API
 # --------------------------------------------------------------------------- #
 
-SUBQ_URL = os.getenv("SUBQ_BASE_URL", "https://api.subq.ai/v1") + "/systemone"
 SUBQ_MODEL = os.getenv("SUBQ_MODEL", "subq-snap-1.1")
 SUBQ_CONTEXT_TOKENS = 384_000
 # Rough chars-per-token for budgeting repo context. Deliberately conservative:
@@ -288,12 +286,13 @@ class SubQSnap:
 
     def __init__(self, model: str | None = None, url: str | None = None):
         self.model = model or SUBQ_MODEL
-        self.url = url or SUBQ_URL
+        base_url = _clean(os.getenv("SUBQ_BASE_URL"))
+        self.url = url or (f"{base_url.rstrip('/')}/systemone" if base_url else None)
         self.usage = Usage()
 
     @property
     def available(self) -> bool:
-        return subq_key() is not None
+        return bool(self.url and subq_key())
 
     @staticmethod
     def context_budget_chars(reserve_tokens: int = 4_000) -> int:
@@ -333,7 +332,7 @@ class SubQSnap:
                 return DecisionResult(error="images exceed the 8 MiB total limit")
 
         if not self.available:
-            return DecisionResult(error="SUBQ_API_KEY is not set")
+            return DecisionResult(error="SUBQ_API_KEY or SUBQ_BASE_URL is not set")
 
         if isinstance(state, str):
             budget = self.context_budget_chars()
@@ -409,7 +408,7 @@ def status() -> dict[str, str]:
     muse, snap = MetaMuse(), SubQSnap()
     return {
         "meta": f"ready ({muse.model})" if muse.available
-        else "absent -- set META_API_KEY (or MODEL_API_KEY); no code or tests can be generated",
+        else "absent -- set META_BASE_URL and META_API_KEY (or MODEL_API_KEY); no code or tests can be generated",
         "subq": f"ready ({snap.model})" if snap.available
-        else "absent -- set SUBQ_API_KEY; adjudication falls back to deterministic rules",
+        else "absent -- set SUBQ_BASE_URL and SUBQ_API_KEY; adjudication falls back to deterministic rules",
     }

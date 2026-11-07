@@ -26,7 +26,7 @@ subject_matter = "the sun"
 
 client = OpenAI(
     # By default, we are using the ASI:One LLM endpoint and model
-    base_url="https://api.asi1.ai/v1",
+    base_url=os.environ["ASI_ONE_BASE_URL"],
     # Get a key at https://asi1.ai/developer and put it in .env as ASI_ONE_API_KEY
     api_key=os.environ["ASI_ONE_API_KEY"],  # required for this example
 )

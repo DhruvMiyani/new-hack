@@ -121,12 +121,17 @@ Python 3.10+ (set up here on 3.12).
 
 ```bash
 uv venv --python 3.12 .venv && VIRTUAL_ENV=.venv uv pip install -r requirements.txt
-cp .env.example .env            # all keys optional
 
 .venv/bin/python verify.py run --offline      # the core result, no API calls
 .venv/bin/python verify.py status             # which providers are configured
 .venv/bin/python -m pytest tests/ -q
 ```
+
+For optional live integrations, configure the corresponding API key and base URL
+in your local `.env` or shell environment. Model integrations use
+`SUBQ_API_KEY` / `SUBQ_BASE_URL`, `META_API_KEY` / `META_BASE_URL`, or
+`ASI_ONE_API_KEY` / `ASI_ONE_BASE_URL`. GitHub API requests use
+`GITHUB_API_BASE_URL`. GCP canary reads use `GCP_STORAGE_BASE_URL`.
 
 ### The six experiments
 

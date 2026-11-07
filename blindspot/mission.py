@@ -228,7 +228,7 @@ def investigate(data,snap=None):
           'usage':{'input_tokens':0,'output_tokens':0,'calls':0,'estimated_usd':0},'latency_ms':0,'coverage':coverage,
           'scope':'Model probabilities are advisory; only executed frozen checks establish the local mission outcome.'}
     if not snap.available:
-        return {**base,'error':'SUBQ_API_KEY is not configured. Access checks and prepared repairs still work; no model probabilities were substituted.'}
+        return {**base,'error':'SUBQ_API_KEY or SUBQ_BASE_URL is not configured. Access checks and prepared repairs still work; no model probabilities were substituted.'}
     started=time.perf_counter()
     result=snap.decide(state,questions,timeout=55,**({'images':images} if images else {}))
     base['latency_ms']=round((time.perf_counter()-started)*1000)

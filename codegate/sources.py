@@ -138,7 +138,10 @@ def from_diff(text: str) -> Submission:
 def from_github_pr(owner: str, repo: str, number: str, token: str | None = None, limit: int = 8) -> Submission:
     """Fetch the PR's changed .py files at the head SHA -- real post-images."""
     sub = Submission(ref=f"{owner}/{repo}#{number}", kind="github_pr")
-    api = "https://api.github.com"
+    api = os.getenv("GITHUB_API_BASE_URL", "").strip().rstrip("/")
+    if not api:
+        sub.warnings.append("Configure GITHUB_API_BASE_URL to review a GitHub pull request.")
+        return sub
     try:
         pr = json.loads(_get(f"{api}/repos/{owner}/{repo}/pulls/{number}", token))
         head_sha = pr["head"]["sha"]
