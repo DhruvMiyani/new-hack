@@ -1,4 +1,4 @@
-# Stop the Leak — mission 01
+# Stop the Leak 
 
 An interactive cloud-security verification challenge powered by **SubQ Snap 1.1**.
 The player inspects an authored permission change, predicts the exposure, runs
