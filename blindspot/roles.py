@@ -95,7 +95,7 @@ def implement(
     reply = muse.complete(
         IMPLEMENTER_SYSTEM,
         f"Specification:\n{task.spec}\n\nRequired signature:\n{task.signature}",
-        max_tokens=1500,
+        max_tokens=8000,
         model=model,
         reasoning_effort=reasoning_effort,
     )
@@ -107,7 +107,7 @@ def write_self_tests(muse: MetaMuse, task: Task, implementation: str) -> str | N
         SELF_TESTER_SYSTEM,
         f"Specification:\n{task.spec}\n\nThe implementation you are testing:\n"
         f"```python\n{implementation}\n```\n\nWrite the test suite.",
-        max_tokens=2000,
+        max_tokens=8000,
     )
     return extract_code(reply) if reply else None
 
@@ -119,7 +119,7 @@ def write_independent_tests(muse: MetaMuse, task: Task, n_tests: int = 8) -> str
         f"Specification:\n{task.spec}\n\nThe function you are testing (signature only):\n"
         f"```python\n{task.signature}\n```\n\n"
         f"Write about {n_tests} tests. You will never see the implementation.",
-        max_tokens=2000,
+        max_tokens=8000,
         temperature=0.4,   # a little spread helps cover more of the input space
     )
     return extract_code(reply) if reply else None

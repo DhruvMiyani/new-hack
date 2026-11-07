@@ -131,7 +131,7 @@ class MetaMuse:
         self,
         system: str,
         user: str,
-        max_tokens: int = 2000,
+        max_tokens: int = 8000,
         temperature: float = 0.2,
         model: str | None = None,
         reasoning_effort: str | None = None,
@@ -182,7 +182,25 @@ class MetaMuse:
                     cached or 0,
                     use_model,
                 )
-            return (r.choices[0].message.content or "").strip() or None
+
+            choice0 = r.choices[0]
+            text = (choice0.message.content or "").strip()
+            if not text:
+                # Muse models reason natively and reasoning is billed against the
+                # SAME max_tokens budget, so too small a budget returns
+                # finish_reason="length" with null content. Reporting that as a
+                # plain None looks like an outage; name the real cause instead.
+                reason = getattr(choice0, "finish_reason", "")
+                if reason == "length":
+                    self.notes.append(
+                        f"{use_model}: max_tokens={max_tokens} was consumed by reasoning before "
+                        "any content was produced -- raise the budget"
+                    )
+                else:
+                    self.notes.append(f"{use_model}: empty content (finish_reason={reason!r})")
+                self.usage.failures += 1
+                return None
+            return text
         except Exception as exc:
             self.usage.failures += 1
             self.last_error = repr(exc)

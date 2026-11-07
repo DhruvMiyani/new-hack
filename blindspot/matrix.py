@@ -194,7 +194,7 @@ def _author(
                 roles.SELF_TESTER_SYSTEM,
                 f"Specification:\n{task.spec}\n\nThe implementation you are testing:\n"
                 f"```python\n{implementation}\n```\n\nWrite the test suite.",
-                max_tokens=2000,
+                max_tokens=8000,
                 temperature=0.4,
                 model=cell.model,
                 reasoning_effort=cell.reasoning,
@@ -206,7 +206,7 @@ def _author(
                 f"Specification:\n{task.spec}\n\nThe function you are testing (signature only):\n"
                 f"```python\n{task.signature}\n```\n\n"
                 "Write about 8 tests. You will never see the implementation.",
-                max_tokens=2000,
+                max_tokens=8000,
                 temperature=0.4,
                 model=cell.model,
                 reasoning_effort=cell.reasoning,
