@@ -30,6 +30,39 @@ from dataclasses import dataclass, field
 
 META_BASE_URL = os.getenv("META_BASE_URL", "https://api.meta.ai/v1")
 META_MODEL = os.getenv("META_MODEL", "muse-spark-1.3")
+
+# Published rates, USD per 1M tokens. Used only to report what a run cost --
+# a grid of generations should never surprise anyone with a bill.
+META_PRICING = {
+    "muse-wonder-1.0":            {"input": 4.00, "output": 20.00, "cached": 0.20},
+    "muse-spark-1.3":             {"input": 1.25, "output": 4.25, "cached": 0.15},
+    "muse-spark-1.2":             {"input": 1.25, "output": 4.25, "cached": 0.15},
+    "muse-spark-1.1":             {"input": 1.25, "output": 4.25, "cached": 0.15},
+    "muse-spark-1.3-contributor": {"input": 0.10, "output": 0.20, "cached": 0.002},
+    "muse-spark-1.2-contributor": {"input": 0.10, "output": 0.20, "cached": 0.002},
+}
+
+# Every model that can author code or tests, for the experiment matrix.
+AUTHOR_MODELS = [
+    "muse-spark-1.3",
+    "muse-spark-1.2",
+    "muse-spark-1.1",
+    "muse-wonder-1.0",
+]
+
+
+def cost_usd(model: str, input_tokens: int, output_tokens: int, cached_tokens: int = 0) -> float:
+    rates = META_PRICING.get(model)
+    if not rates:
+        return 0.0
+    billed_input = max(input_tokens - cached_tokens, 0)
+    return (
+        billed_input * rates["input"]
+        + cached_tokens * rates["cached"]
+        + output_tokens * rates["output"]
+    ) / 1_000_000
+
+
 PLACEHOLDERS = {"", "paste-your-key-here", "changeme", "your-api-key", "<your-api-key>"}
 
 
@@ -47,12 +80,26 @@ def meta_key() -> str | None:
 class Usage:
     input_tokens: int = 0
     output_tokens: int = 0
+    cached_tokens: int = 0
     calls: int = 0
+    failures: int = 0
+    usd: float = 0.0
 
-    def add(self, i: int, o: int) -> None:
+    def add(self, i: int, o: int, cached: int = 0, model: str = "") -> None:
         self.input_tokens += i
         self.output_tokens += o
+        self.cached_tokens += cached
         self.calls += 1
+        if model:
+            self.usd += cost_usd(model, i, o, cached)
+
+    def line(self) -> str:
+        cache = f", {self.cached_tokens} cached" if self.cached_tokens else ""
+        fail = f", {self.failures} failed" if self.failures else ""
+        return (
+            f"{self.calls} call(s){fail}: {self.input_tokens}in/{self.output_tokens}out"
+            f"{cache} = ${self.usd:.4f}"
+        )
 
 
 class MetaMuse:
@@ -62,6 +109,8 @@ class MetaMuse:
         self.model = model or META_MODEL
         self.base_url = base_url or META_BASE_URL
         self.usage = Usage()
+        self.notes: list[str] = []
+        self.last_error = ""
         self._client = None
 
     @property
@@ -81,26 +130,60 @@ class MetaMuse:
         user: str,
         max_tokens: int = 2000,
         temperature: float = 0.2,
+        model: str | None = None,
+        reasoning_effort: str | None = None,
+        seed: int | None = None,
     ) -> str | None:
-        """Returns the reply text, or None if unavailable / the call failed."""
+        """Returns the reply text, or None if unavailable / the call failed.
+
+        reasoning_effort is Meta-specific ("low"/"medium"/"high"). It is sent as
+        an extra body field; if the endpoint rejects it we retry once without,
+        so an unsupported model degrades instead of losing the whole cell.
+        """
         if not self.available:
             return None
-        try:
-            r = self._get_client().chat.completions.create(
-                model=self.model,
-                messages=[
+        use_model = model or self.model
+
+        def _call(with_reasoning: bool):
+            kwargs = {
+                "model": use_model,
+                "messages": [
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
                 ],
-                max_tokens=max_tokens,
-                temperature=temperature,
-            )
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+            }
+            if seed is not None:
+                kwargs["seed"] = seed
+            if with_reasoning and reasoning_effort:
+                kwargs["extra_body"] = {"reasoningEffort": reasoning_effort}
+            return self._get_client().chat.completions.create(**kwargs)
+
+        try:
+            try:
+                r = _call(True)
+            except Exception:
+                if not reasoning_effort:
+                    raise
+                self.notes.append(f"{use_model}: reasoningEffort rejected, retried without it")
+                r = _call(False)
+
             u = getattr(r, "usage", None)
             if u:
-                self.usage.add(getattr(u, "prompt_tokens", 0) or 0, getattr(u, "completion_tokens", 0) or 0)
+                details = getattr(u, "prompt_tokens_details", None)
+                cached = getattr(details, "cached_tokens", 0) if details else 0
+                self.usage.add(
+                    getattr(u, "prompt_tokens", 0) or 0,
+                    getattr(u, "completion_tokens", 0) or 0,
+                    cached or 0,
+                    use_model,
+                )
             return (r.choices[0].message.content or "").strip() or None
         except Exception as exc:
+            self.usage.failures += 1
             self.last_error = repr(exc)
+            self.notes.append(f"{use_model}: {exc!r}"[:200])
             return None
 
 

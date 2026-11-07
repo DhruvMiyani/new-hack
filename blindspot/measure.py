@@ -132,6 +132,25 @@ class Scorecard:
         return out
 
 
+def kills(suite: Suite, mutants: list[Mutant], timeout: float = 20.0) -> tuple[set[str], dict[str, list[str]]]:
+    """Which of these (already proven) defects does this suite catch?
+
+    Separated out so the experiment matrix can reuse one proven defect set
+    across every cell -- the equivalence partition is the expensive step and it
+    depends only on the task, never on the suite.
+    """
+    killed: set[str] = set()
+    which: dict[str, list[str]] = {}
+    if not suite.valid:
+        return killed, which
+    for m in mutants:
+        r = run_suite(m.source, suite.source, timeout)
+        if r.detects:
+            killed.add(m.mutant_id)
+            which[m.mutant_id] = [t.name for t in r.failures]
+    return killed, which
+
+
 def validate(suite: Suite, correct_impl: str, timeout: float = 20.0) -> Suite:
     """Run the suite against the correct implementation. Must pass cleanly."""
     suite.baseline = run_suite(correct_impl, suite.source, timeout)

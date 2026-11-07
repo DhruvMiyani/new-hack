@@ -84,11 +84,20 @@ class Task:
     reference: str = ""          # a known-correct implementation, when we have one
 
 
-def implement(muse: MetaMuse, task: Task) -> str | None:
+def implement(
+    muse: MetaMuse,
+    task: Task,
+    model: str | None = None,
+    reasoning_effort: str | None = None,
+) -> str | None:
+    """Write the implementation. `model` is explicit in experiments, so the
+    report can always say which model played implementer."""
     reply = muse.complete(
         IMPLEMENTER_SYSTEM,
         f"Specification:\n{task.spec}\n\nRequired signature:\n{task.signature}",
         max_tokens=1500,
+        model=model,
+        reasoning_effort=reasoning_effort,
     )
     return extract_code(reply) if reply else None
 

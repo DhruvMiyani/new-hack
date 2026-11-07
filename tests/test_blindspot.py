@@ -272,3 +272,139 @@ def test_meta_placeholder_key_is_not_treated_as_configured(monkeypatch):
     monkeypatch.setenv("META_API_KEY", "paste-your-key-here")
     monkeypatch.delenv("MODEL_API_KEY", raising=False)
     assert not MetaMuse().available
+
+
+# --------------------------------------------------------------------------- #
+# the experiment matrix, driven by a stub author so the grid logic is tested
+# without needing a live key
+# --------------------------------------------------------------------------- #
+
+
+class _StubMuse:
+    """Stands in for Meta. Returns a suite whose strength depends on the cell.
+
+    saw-code cells get happy-path tests; spec-only cells get boundary tests.
+    Sample index perturbs the suite so the matrix sees real spread.
+    """
+
+    model = "stub"
+    available = True
+
+    def __init__(self):
+        from blindspot.providers import Usage
+
+        self.usage = Usage()
+        self.notes = []
+        self.calls = []
+
+    def complete(self, system, user, **kw):
+        self.calls.append({"model": kw.get("model"), "reasoning": kw.get("reasoning_effort"),
+                           "seed": kw.get("seed")})
+        self.usage.add(100, 200, 0, "")
+        sample = (kw.get("seed") or 1000) - 1000
+        if "signature only" in user:
+            extra = (
+                "\ndef test_zero_request_is_grantable():\n    assert allocate(1, [0]) == [0]\n"
+                if sample > 0 else ""
+            )
+            return (
+                "```python\nfrom impl import allocate\n\n"
+                "def test_exact_fit():\n    assert allocate(3, [3]) == [3]\n\n"
+                "def test_never_overspends():\n    assert sum(allocate(5, [3, 3, 3])) <= 5\n"
+                + extra + "```"
+            )
+        return (
+            "```python\nfrom impl import allocate\n\n"
+            "def test_happy_path():\n    assert allocate(10, [1, 2, 3]) == [1, 2, 3]\n```"
+        )
+
+
+def test_matrix_isolates_information_and_model_effects():
+    from blindspot.matrix import SAW_CODE, SPEC_ONLY, run_matrix
+
+    stub = _StubMuse()
+    res = run_matrix(
+        TASKS["allocate"], models=["stub-a", "stub-b"], samples=2, trials=300, muse=stub
+    )
+
+    assert res.defects, "expected proven defects"
+    # 2 models x 2 conditions x 1 reasoning level
+    assert len(res.groups) == 4
+    for g in res.groups:
+        assert len(g.cells) == 2
+        assert g.mean is not None, f"{g.label()} produced no usable sample"
+
+    # the stub's spec-only suites are strictly stronger, so the information
+    # effect must be positive for both models
+    for model in ("stub-a", "stub-b"):
+        eff = res.information_effect(model)
+        assert eff is not None and eff > 0, f"{model}: information effect {eff}"
+
+    # every requested cell was asked for by name, and the implementer is recorded
+    models_called = {c["model"] for c in stub.calls}
+    assert models_called == {"stub-a", "stub-b"}, "no cell may use the provider default"
+    assert res.implementer_model == "stub-a"
+
+
+def test_matrix_reports_spread_across_samples():
+    from blindspot.matrix import SPEC_ONLY, run_matrix
+
+    stub = _StubMuse()
+    res = run_matrix(TASKS["allocate"], models=["stub-a"], samples=3, trials=300, muse=stub)
+    g = res.group("stub-a", SPEC_ONLY)
+    assert g is not None and g.stdev is not None
+    # sample 0 is weaker than samples 1 and 2, so there must be real spread
+    assert g.stdev > 0
+    # floor <= mean <= ceiling
+    inter, union = g.intersection, g.union
+    assert inter is not None
+    assert len(inter) <= len(union)
+    assert len(inter) / res.total <= g.mean <= len(union) / res.total + 1e-9
+
+
+def test_matrix_passes_reasoning_effort_through():
+    from blindspot.matrix import run_matrix
+
+    stub = _StubMuse()
+    run_matrix(
+        TASKS["allocate"], models=["stub-a"], samples=1,
+        reasoning_levels=["low", "high"], trials=200, muse=stub,
+    )
+    efforts = {c["reasoning"] for c in stub.calls if c["reasoning"]}
+    assert efforts == {"low", "high"}
+
+
+def test_matrix_reuses_one_proven_defect_set_for_every_cell():
+    """Cells must differ only in the axis under test, never in the denominator."""
+    from blindspot.matrix import run_matrix
+
+    stub = _StubMuse()
+    res = run_matrix(TASKS["allocate"], models=["stub-a", "stub-b"], samples=2, trials=300, muse=stub)
+    totals = {g.total_defects for g in res.groups}
+    assert totals == {res.total}
+
+
+def test_matrix_without_a_key_explains_itself():
+    from blindspot.matrix import run_matrix
+    from blindspot.providers import MetaMuse
+
+    class _Absent(MetaMuse):
+        @property
+        def available(self):
+            return False
+
+    res = run_matrix(TASKS["allocate"], muse=_Absent())
+    assert not res.defects and not res.groups
+    assert any("Meta key" in n for n in res.notes)
+
+
+def test_cost_estimate_matches_published_rates():
+    from blindspot.providers import cost_usd
+
+    # muse-spark-1.3: $1.25/M in, $4.25/M out
+    assert abs(cost_usd("muse-spark-1.3", 1_000_000, 0) - 1.25) < 1e-9
+    assert abs(cost_usd("muse-spark-1.3", 0, 1_000_000) - 4.25) < 1e-9
+    # cached input is billed at the cached rate, not the full rate
+    cached = cost_usd("muse-spark-1.3", 1_000_000, 0, cached_tokens=1_000_000)
+    assert abs(cached - 0.15) < 1e-9
+    assert cost_usd("unknown-model", 1_000_000, 1_000_000) == 0.0

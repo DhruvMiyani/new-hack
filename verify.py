@@ -18,6 +18,8 @@ load_dotenv()
 
 from blindspot import pipeline            # noqa: E402  (after load_dotenv)
 from blindspot.providers import MetaMuse, SubQSnap, status  # noqa: E402
+from blindspot.matrix import render_matrix, run_matrix     # noqa: E402
+from blindspot.providers import AUTHOR_MODELS              # noqa: E402
 from blindspot.report import render_aggregate, render_run   # noqa: E402
 from blindspot.tasks import TASKS         # noqa: E402
 
@@ -73,6 +75,44 @@ def cmd_run(args) -> int:
     return 1 if any(r.decision == "BLOCK" for r in reports) else 0
 
 
+def cmd_matrix(args) -> int:
+    """Separate information independence from model independence, with error bars."""
+    muse = MetaMuse()
+    if not muse.available:
+        print("The matrix needs a Meta key: every cell is a freshly generated suite.")
+        print("Set META_API_KEY (or MODEL_API_KEY) in .env, then re-run.")
+        print("\nWithout a key, `verify.py run --offline` still gives the single-pair result.")
+        return 2
+
+    models = args.models.split(",") if args.models else [AUTHOR_MODELS[0]]
+    reasoning = args.reasoning.split(",") if args.reasoning else [None]
+    reasoning = [None if r in ("", "none") else r for r in reasoning]
+
+    tasks = [TASKS[args.task]] if args.task in TASKS else list(TASKS.values())
+    cells = len(tasks) * len(models) * 2 * len(reasoning) * args.samples
+    print(f"grid: {len(tasks)} task(s) x {len(models)} model(s) x 2 conditions "
+          f"x {len(reasoning)} reasoning level(s) x {args.samples} sample(s) = {cells} suites")
+    print(f"models: {', '.join(models)}")
+    print("estimated cost: well under $1 at published rates; exact spend reported below.\n")
+
+    results = []
+    for task in tasks:
+        res = run_matrix(
+            task,
+            models=models,
+            samples=args.samples,
+            reasoning_levels=reasoning,
+            trials=args.trials,
+            muse=muse,
+        )
+        results.append(res)
+        print(render_matrix(res))
+        print()
+
+    print(f"meta api: {muse.usage.line()}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         prog="verify", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -86,6 +126,14 @@ def main() -> int:
     r.add_argument("--limit", type=int, default=None, help="cap mutants per task")
     r.add_argument("--verbose", action="store_true", help="include equivalence reasoning")
     r.set_defaults(fn=cmd_run)
+
+    m = sub.add_parser("matrix", help="information vs model independence, with error bars")
+    m.add_argument("--task", help=f"one of: {', '.join(TASKS)}")
+    m.add_argument("--models", help=f"comma-separated; available: {','.join(AUTHOR_MODELS)}")
+    m.add_argument("--samples", type=int, default=3, help="suites per cell (default 3)")
+    m.add_argument("--reasoning", help="comma-separated reasoningEffort levels, e.g. low,high")
+    m.add_argument("--trials", type=int, default=400)
+    m.set_defaults(fn=cmd_matrix)
 
     sub.add_parser("status", help="show provider configuration").set_defaults(fn=cmd_status)
 
