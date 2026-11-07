@@ -40,13 +40,26 @@ def cmd_status(_args) -> int:
 
 
 def cmd_run(args) -> int:
-    if args.task:
-        if args.task not in TASKS:
-            print(f"unknown task {args.task!r}; have: {', '.join(TASKS)}", file=sys.stderr)
-            return 2
-        chosen = [TASKS[args.task]]
+    if args.cloud:
+        from blindspot.cloud import (
+            CLOUD_TASKS,
+            OFFLINE_INDEPENDENT_TESTS as CLOUD_IND,
+            OFFLINE_SELF_TESTS as CLOUD_SELF,
+        )
+
+        bank = (CLOUD_SELF, CLOUD_IND)
+        pool = CLOUD_TASKS
     else:
-        chosen = list(TASKS.values())
+        bank = (None, None)
+        pool = TASKS
+
+    if args.task:
+        if args.task not in pool:
+            print(f"unknown task {args.task!r}; have: {', '.join(pool)}", file=sys.stderr)
+            return 2
+        chosen = [pool[args.task]]
+    else:
+        chosen = list(pool.values())
 
     use_models = not args.offline
     if use_models and not MetaMuse().available:
@@ -59,6 +72,8 @@ def cmd_run(args) -> int:
             use_models=use_models,
             trials=args.trials,
             mutant_limit=args.limit,
+            self_tests=bank[0],
+            independent_tests=bank[1],
         )
         reports.append(report)
         print(render_run(report, verbose=args.verbose))
@@ -370,6 +385,9 @@ def main() -> int:
     r.add_argument("--trials", type=int, default=400, help="differential-test inputs per mutant")
     r.add_argument("--limit", type=int, default=None, help="cap mutants per task")
     r.add_argument("--verbose", action="store_true", help="include equivalence reasoning")
+    r.add_argument("--cloud", action="store_true",
+                   help="run the cloud exposure tasks (security group, bucket policy, IAM role) "
+                        "instead of the code tasks")
     r.set_defaults(fn=cmd_run)
 
     m = sub.add_parser("matrix", help="information vs model independence, with error bars")

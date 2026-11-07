@@ -12,6 +12,24 @@ def _bar(fraction: float, width: int = BAR_WIDTH) -> str:
     return "#" * filled + "." * (width - filled)
 
 
+def witness_line(eq) -> str:
+    """Witness text, summarised as a permission delta when it is one.
+
+    Cloud tasks return an access tuple, and dumping two whole tuples buries the
+    finding. For those, show what the change opened and closed. Anything else
+    falls through to the normal rendering.
+    """
+    if eq is None or eq.witness is None:
+        return ""
+    try:
+        from .cloud import summarise_witness
+
+        summary = summarise_witness(eq.witness.original, eq.witness.mutant)
+    except Exception:
+        summary = None
+    return summary or eq.witness.render()
+
+
 def render_run(report: RunReport, verbose: bool = False) -> str:
     out: list[str] = []
     card = report.scorecard
@@ -67,6 +85,15 @@ def render_run(report: RunReport, verbose: bool = False) -> str:
         ki, _ = ops_ind.get(op, (0, ts))
         out.append(f"  {op:12} {f'{ks}/{ts}':>9} {f'{ki}/{ts}':>12}")
 
+    try:
+        from .cloud import render_breakdown
+
+        extra = render_breakdown(card, (SELF, INDEPENDENT))
+        if extra:
+            out.append(extra)
+    except Exception:
+        pass
+
     rec = card.recovered(SELF, INDEPENDENT)
     if rec:
         out.append("\ndefects ONLY the independent suite caught")
@@ -74,7 +101,7 @@ def render_run(report: RunReport, verbose: bool = False) -> str:
             eq = card.classifications.get(v.mutant.mutant_id)
             out.append(f"  - {v.mutant.operator} at line {v.mutant.line}: {v.mutant.description}")
             if eq and eq.witness:
-                out.append(f"      witness : {eq.witness.render()}")
+                out.append(f"      witness : {witness_line(eq)}")
             tests = ", ".join(v.killing_tests.get(INDEPENDENT, []))
             out.append(f"      caught by: {tests}")
 
@@ -85,7 +112,7 @@ def render_run(report: RunReport, verbose: bool = False) -> str:
             eq = card.classifications.get(v.mutant.mutant_id)
             out.append(f"  - {v.mutant.operator} line {v.mutant.line}: {v.mutant.description}")
             if eq and eq.witness:
-                out.append(f"      witness: {eq.witness.render()}")
+                out.append(f"      witness: {witness_line(eq)}")
 
     if card.equivalent:
         out.append(

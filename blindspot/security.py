@@ -197,7 +197,12 @@ def execute_probe(bundle: dict, probe: Probe) -> Observation:
     if probe.action == "assign_admin":
         allowed = role == "admin" or settings["allow_self_role_change"]
         if allowed:
-            trace += ["role assignment accepted: session becomes admin", "subsequent administrator request granted"]
+            elevated = copy.deepcopy(bundle)
+            next(u for u in elevated[DIRECTORY]["users"] if u["id"] == probe.actor)["role"] = "admin"
+            next(s for s in elevated[SESSIONS]["sessions"] if s["user"] == probe.actor)["claimed_role"] = "admin"
+            followup = execute_probe(elevated, Probe(probe.id + "/followup", probe.actor, "administer", probe.resource, True))
+            trace += ["role assignment accepted in an isolated copy; replaying administrator request", *followup.trace]
+            allowed = followup.allowed
     elif probe.action == "administer":
         allowed = role == "admin"
     else:

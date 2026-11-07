@@ -31,6 +31,7 @@ from blindspot import tasks as bs_tasks
 from blindspot.providers import MetaMuse, SubQSnap
 from blindspot.providers import status as bs_status
 from blindspot.report import render_markdown
+from blindspot.security_chat import handle_security_action, handle_security_text
 from codegate import cards, learn, llm, policy
 from codegate.models import Status
 from codegate.pipeline import ReviewResult, Step
@@ -73,6 +74,9 @@ executed, with the real output attached. Anything I could not reproduce is label
 unproven and is never allowed to block on its own.
 
 **Other commands:**
+- `security` — reproduce private-storage exposure, admin escalation, and revoked-access failures
+- `security repair` — verify a repair with the same frozen checks (local demo, no cloud writes)
+- `security combined repair models` — SubQ risk decisions + Meta repair generation
 - `blindspot` — the headline experiment: have a model write code *and its own tests*,
   have an independent author write tests from the spec alone, inject known defects, and
   measure which suite actually catches them
@@ -363,6 +367,8 @@ async def do_rules(ctx: Context, sender: str) -> None:
 
 async def handle_card_action(ctx: Context, sender: str, selection: dict) -> bool:
     """CTA presses from the review, carousel and detail cards."""
+    if await handle_security_action(ctx, sender, selection, _say):
+        return True
     action = str(selection.get("action", ""))
     result = SESSIONS.get(sender)
 
@@ -489,6 +495,8 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
 
     try:
         lowered = text.lower().strip()
+        if await handle_security_text(ctx, sender, text, _say):
+            return
         if lowered.startswith(("blindspot", "blind spot", "independence", "experiment")):
             parts = lowered.split()
             wanted = next((p for p in parts if p in bs_tasks.TASKS), None)

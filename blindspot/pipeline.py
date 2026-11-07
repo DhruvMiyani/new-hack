@@ -69,6 +69,8 @@ def run(
     trials: int = 400,
     operators: list[str] | None = None,
     mutant_limit: int | None = None,
+    self_tests: dict[str, str] | None = None,
+    independent_tests: dict[str, str] | None = None,
 ) -> RunReport:
     muse, snap = MetaMuse(), SubQSnap()
     report = RunReport(task=task, implementation="", scorecard=None)
@@ -109,11 +111,13 @@ def run(
                 "meta",
             )
         )
+    bank_self = self_tests if self_tests is not None else task_lib.OFFLINE_SELF_TESTS
+    bank_ind = independent_tests if independent_tests is not None else task_lib.OFFLINE_INDEPENDENT_TESTS
     if not self_src:
-        self_src = task_lib.OFFLINE_SELF_TESTS.get(task.name, "")
+        self_src = bank_self.get(task.name, "")
         report.stages.append(Stage("author tests", "self-tests: offline stand-in", "offline"))
     if not ind_src:
-        ind_src = task_lib.OFFLINE_INDEPENDENT_TESTS.get(task.name, "")
+        ind_src = bank_ind.get(task.name, "")
         report.stages.append(Stage("author tests", "independent: offline stand-in", "offline"))
 
     suites = [

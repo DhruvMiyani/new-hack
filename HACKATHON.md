@@ -7,8 +7,8 @@ against each.
 > Venue WiFi credentials from the participant guide are deliberately **not**
 > recorded here — this repository is public.
 
-**Status at last update (12:20 PT):** 123 tests passing, six scored
-experiments built, **zero live API calls made**. See §9.
+**Status at last update (12:50 PT):** 174 tests passing, six scored
+experiments plus a cloud-exposure domain, **zero live API calls made**. See §9.
 
 ---
 
@@ -139,15 +139,43 @@ by a **witness** — a concrete input where original and mutant provably differ.
 | `localize` | which line holds the defect, confidence-gated | SubQ: 255-option `choice` |
 | `queue` | merge-queue triage vs FIFO and random | SubQ: curation + multimodal + triage |
 | `haystack` | one bug hidden in up to 384K tokens | SubQ: long context |
+| `run --cloud` | exposure vs regression on IaC and IAM policy | — (local, always works) |
 
 ### The headline, from executed code
 
 ```
-3 tasks | 27 proven defects
+3 code tasks | 27 proven defects
   caught by the implementer's own tests   26%
   caught by independent spec-only tests   74%
   blind-spot recovery                     13/20 = 65%
 ```
+
+### The second domain: cloud exposure (`verify.py run --cloud`)
+
+Security-group, bucket-policy and IAM-role configurations get the same
+treatment, with the same evidence bar: a permission change counts only when we
+can name an access that was **denied before and allowed after**. The witness is
+produced by evaluating the policy, so it needs no cloud account.
+
+**The result here contradicts the code result, and that is the interesting
+part.** Pooled across 24 proven permission changes the independent suite scores
+*worse* — 54% against 71%. Splitting by what the change actually did explains
+why:
+
+```
+change class     n     self  independent
+EXPOSURE        16     56%         81%     <- access newly granted
+REGRESSION       8    100%          0%     <- access only removed
+```
+
+A suite written from a security requirement is a list of **prohibitions**, so
+it dominates on access that gets opened and is structurally blind to access
+that gets removed. A suite written from the config asserts what should be
+there, so it has the opposite profile.
+
+**They are complementary, not ranked.** For configuration you need both. An
+earlier version of the test asserted a blanket win for independence; the data
+did not support it, and the test was rewritten rather than the corpus tuned.
 
 ### The anti-gaming rules, each with a test
 
@@ -158,6 +186,8 @@ by a **witness** — a concrete input where original and mutant provably differ.
 3. A triage ordering worse than FIFO prints **`SLOWER than doing nothing`**.
 4. A constant predictor must **lose to the base-rate baseline**.
 5. The haystack **refuses a trial** unless the needle survives into the prompt.
+6. On cloud, **EXPOSURE and REGRESSION are scored separately** — blending them
+   would let a suite that only catches regressions look like a security control.
 
 ---
 
@@ -288,10 +318,11 @@ the ASI:One agent command, the anti-gaming rules.
 The two keys are independent — `calibrate` needs only SubQ, `matrix` only Meta.
 Whichever arrives first unlocks a real number.
 
-**Scope discipline from here:** no new experiments. Proposals to extend into
-cloud exposure, permission auditing, or a web UI are different projects and
-would put the submission at risk. The remaining time goes to live runs, the
-video, and the repo.
+**Scope discipline from here:** cloud exposure was added on request and is
+done (3 tasks, 4 config mutation operators, 174 tests). No further domains
+before the deadline — a web UI in particular would walk into the banned
+"dashboard as the main feature" category. The remaining time goes to live runs,
+the video, and making the repo public.
 
 ## 10. Submission checklist
 

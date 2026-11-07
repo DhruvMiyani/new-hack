@@ -24,5 +24,5 @@ Run from the repository root:
 The default scenario combines all three defects. Omit `--offline` and pass
 `--models` to ask SubQ to rank risk across all supplied artifacts and Meta to
 propose a configuration repair. Unavailable models are reported explicitly;
-they cannot produce a passing verdict. `--offline --repair` uses a labelled
+only executed checks determine the verdict. `--offline --repair` uses a labelled
 deterministic repair instead. Neither mode writes to cloud accounts.

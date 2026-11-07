@@ -11,6 +11,13 @@
 
 AIE Code Summit 2026 — problem statement: **Trust but Verify**.
 
+**New security workflow:** reproduce public-storage exposure, administrator
+escalation, and revoked-employee access; propose a repair and rerun frozen
+independent checks. Start with
+`.venv/bin/python verify.py security --offline --repair`.
+See [the security workflow](SECURITY.md) for Meta/SubQ mode and ASI:One cards.
+This is a local security lab, not a live cloud assessment.
+
 > *"How can a verifier write its own tests without sharing the implementer's blind spots, and stay independent, reproducible and hard to game?"*
 
 That question has an empirical answer, so this project answers it with a number measured from executed code rather than with a design claim.
@@ -81,7 +88,7 @@ cp .env.example .env            # all keys optional
 
 .venv/bin/python verify.py run --offline      # the core result, no API calls
 .venv/bin/python verify.py status             # which providers are configured
-.venv/bin/python -m pytest tests/ -q          # 123 tests
+.venv/bin/python -m pytest tests/ -q          # 174 tests
 ```
 
 ### The six experiments
@@ -97,6 +104,7 @@ a **witness** — a concrete input where the original and the mutant provably di
 | `localize` | which line holds the defect, confidence-gated over 255 options | SubQ |
 | `queue` | merge-queue triage against FIFO and random | SubQ |
 | `haystack` | one known bug hidden in up to 384K tokens of real code | SubQ |
+| `run --cloud` | cloud exposure: does the suite notice a widened permission? | nothing |
 
 ```bash
 .venv/bin/python verify.py matrix --models muse-spark-1.3,muse-wonder-1.0 --samples 3
@@ -104,7 +112,36 @@ a **witness** — a concrete input where the original and the mutant provably di
 .venv/bin/python verify.py localize --repo-scale --multimodal
 .venv/bin/python verify.py queue --curate --multimodal-every 3
 .venv/bin/python verify.py haystack --sizes 10000,50000,150000,350000
+.venv/bin/python verify.py run --cloud --offline
 ```
+
+### A second domain: cloud exposure
+
+Security groups, bucket policies and IAM roles, held to the same evidence bar —
+a permission change counts only when we can name an access that was **denied
+before and allowed after**. The witness comes from evaluating the policy, so no
+cloud account is involved.
+
+```
+widen_cidr: CIDR 10.1.0.0/16 widened to 0.0.0.0/0
+  witness: EXPOSURE  |  NEWLY PERMITTED: 0.0.0.0/0/tcp/5432
+  caught by: test_database_not_open_to_the_internet
+```
+
+**Here the result flips, and that is the finding.** Pooled over 24 proven
+permission changes the independent suite scores *worse* (54% vs 71%). Splitting
+by what the change did explains it:
+
+| change class | n | self-written | independent |
+|---|---|---|---|
+| **EXPOSURE** — access newly granted | 16 | 56% | **81%** |
+| **REGRESSION** — access only removed | 8 | **100%** | **0%** |
+
+A suite written from a security requirement is a list of prohibitions: it
+dominates on access that gets opened and is structurally blind to access that
+gets removed. For configuration you need both kinds. An earlier test asserted a
+blanket win for independence; the data did not support it, so the test changed,
+not the corpus.
 
 **The measurement never depends on a model being reachable.** The numbers come from executed code, so `--offline` produces the same headline result — which also means conference WiFi cannot break the demo.
 
@@ -213,6 +250,7 @@ reference impl ──┴──> mutate.py      6 AST operators -> single-site de
 | `queue_triage.py` | merge-queue ranking against a written policy |
 | `haystack.py` | 384K-token needle assembly with a survival guard |
 | `screenshot.py` | renders context as a PNG for the multimodal comparison |
+| `cloud.py` | cloud tasks, 4 config mutation operators, exposure/regression split |
 
 ---
 
@@ -222,6 +260,10 @@ reference impl ──┴──> mutate.py      6 AST operators -> single-site de
 - **The offline stand-in suites are mine.** With no Meta key, the "self-written" and "independent" suites are hand-written in the style each author produces. I wrote them before measuring, but they are not model output — the honest version of the headline claim requires a live run with a Meta key, and the report always states which mode produced it.
 - **Equivalence detection is sound but not complete.** No distinguishing input within the budget means *likely* equivalent, not provably so. A mutant could need an input the synthesiser never tries.
 - **Input synthesis is heuristic**, driven by type annotations and parameter names. Unannotated code with unusual parameter names gets a weaker input space.
+- **The cloud domain models policy evaluation in Python**, not real Terraform or
+  live cloud state. The evaluator is deterministic and the witnesses are real,
+  but a production version would parse HCL and reconcile against the actual
+  account.
 - **Python only**, single-function tasks. The repo-scale SubQ path is implemented (`pick_risk_surface`) but the measurement itself has not been run across a multi-file repository.
 - **The mutants stand in for AI-generated defects.** They are realistic and have ground truth, which real AI defects lack — but they are injected, not naturally occurring.
 - **Sandboxing is defence in depth, not a jail.** Child process isolation, rlimits and no network stop accidents; untrusted third-party code belongs in a container.
@@ -245,5 +287,5 @@ blindspot/            hackathon work (see Provenance)
 HACKATHON.md          event context, judging-criteria self-assessment, demo script
 agent.py              ASI:One agent (pre-existing; `blindspot` command added today)
 codegate/             pre-hackathon review engine
-tests/                123 tests
+tests/                174 tests
 ```

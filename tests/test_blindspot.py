@@ -1024,3 +1024,143 @@ def test_haystack_without_a_key_explains_itself():
     rep = run_haystack(TASKS["allocate"], _a_mutant(), sizes=(10_000,), depths=(0.5,), snap=_Absent())
     assert not rep.usable
     assert any("SUBQ_API_KEY" in n for n in rep.notes)
+
+
+# --------------------------------------------------------------------------- #
+# cloud exposure and permission changes
+# --------------------------------------------------------------------------- #
+
+from blindspot import cloud  # noqa: E402
+from blindspot.cloud import CLOUD_TASKS  # noqa: E402
+
+
+@pytest.mark.parametrize("name", list(CLOUD_TASKS))
+def test_cloud_reference_satisfies_its_own_security_requirement(name):
+    """The baseline must be secure, or every mutant is measured against a bug."""
+    from blindspot.measure import Suite, validate
+
+    task = CLOUD_TASKS[name]
+    suite = Suite("independent", "offline", cloud.OFFLINE_INDEPENDENT_TESTS[name])
+    validate(suite, task.reference)
+    assert suite.valid, suite.disqualification()
+
+
+@pytest.mark.parametrize("name", list(CLOUD_TASKS))
+def test_cloud_mutants_are_proven_by_an_access_diff(name):
+    task = CLOUD_TASKS[name]
+    real, _, table = partition(task.reference, generate(task.reference), task.target, trials=50)
+    assert real, f"{name}: no provable permission change"
+    for m in real:
+        eq = table[m.mutant_id]
+        assert eq.witness is not None
+        before = cloud.parse_access(eq.witness.original)
+        after = cloud.parse_access(eq.witness.mutant)
+        assert before is not None and after is not None, "witness must be an access tuple"
+        assert before != after, "a proven change must alter the access set"
+
+
+def test_cloud_operators_all_fire_somewhere():
+    fired = set()
+    for task in CLOUD_TASKS.values():
+        fired |= {m.operator for m in generate(task.reference)}
+    for op in cloud.CLOUD_OPERATORS:
+        assert op in fired, f"{op} never fired on any cloud task"
+
+
+def test_widening_a_cidr_opens_the_port_to_the_internet():
+    """The operator must produce a real exposure, not just a text change."""
+    task = CLOUD_TASKS["security_group"]
+    real, _, table = partition(task.reference, generate(task.reference), task.target, trials=50)
+    widened = [m for m in real if m.operator == "widen_cidr"]
+    assert widened
+    opened_any = []
+    for m in widened:
+        w = table[m.mutant_id].witness
+        before, after = cloud.parse_access(w.original), cloud.parse_access(w.mutant)
+        opened_any += cloud.newly_permitted(before, after)
+    assert any(a.startswith("0.0.0.0/0/") for a in opened_any)
+
+
+def test_exposure_is_distinguished_from_a_mere_regression():
+    """Removing access is a defect but not an exposure; conflating them would
+    overstate the security finding."""
+    assert cloud.classify_change(("a",), ("a", "b")) == "EXPOSURE"
+    assert cloud.classify_change(("a", "b"), ("a",)) == "REGRESSION"
+    assert cloud.classify_change(("a",), ("b",)) == "EXPOSURE+REGRESSION"
+    assert cloud.classify_change(("a",), ("a",)) == "NO CHANGE"
+
+
+def test_witness_summary_names_the_newly_permitted_access():
+    summary = cloud.summarise_witness("ok:('10.0.0.0/8/tcp/22',)", "ok:('0.0.0.0/0/tcp/22',)")
+    assert summary is not None
+    assert "NEWLY PERMITTED: 0.0.0.0/0/tcp/22" in summary
+    assert "EXPOSURE" in summary
+
+
+def test_witness_summary_ignores_non_cloud_witnesses():
+    """Code witnesses must fall through to the normal rendering untouched."""
+    assert cloud.summarise_witness("ok:[1, 2]", "ok:[1, 3]") is None
+    assert cloud.summarise_witness("raise:ZeroDivisionError", "ok:0.0") is None
+
+
+def test_public_access_block_suppresses_anonymous_grants():
+    """The reference policy's own rule, checked directly."""
+    from blindspot.runner import run_suite
+
+    suite = (
+        "from impl import effective_access\n"
+        "def test_no_anonymous():\n"
+        "    assert not any(g.startswith('*|') for g in effective_access())\n"
+    )
+    r = run_suite(CLOUD_TASKS["bucket_policy"].reference, suite)
+    assert r.usable and r.passed_all
+
+
+def _cloud_cards():
+    from blindspot.pipeline import run
+
+    return [
+        run(
+            t,
+            use_models=False,
+            trials=80,
+            self_tests=cloud.OFFLINE_SELF_TESTS,
+            independent_tests=cloud.OFFLINE_INDEPENDENT_TESTS,
+        ).scorecard
+        for t in CLOUD_TASKS.values()
+    ]
+
+
+def test_independence_wins_on_exposures_and_loses_on_regressions():
+    """The actual finding on configuration, which differs from the code result.
+
+    On code, withholding the implementation wins outright. On configuration it
+    does not: a suite written from a security requirement is a list of
+    prohibitions, so it dominates on access that gets OPENED and is blind to
+    access that gets REMOVED. Pooling the two classes describes neither, and an
+    earlier version of this test asserted a blanket win that the data does not
+    support.
+    """
+    from blindspot.pipeline import INDEPENDENT, SELF
+
+    pooled: dict[str, dict] = {}
+    for card in _cloud_cards():
+        for kind, row in cloud.breakdown(card, (SELF, INDEPENDENT)).items():
+            agg = pooled.setdefault(kind, {"n": 0, SELF: 0, INDEPENDENT: 0})
+            for k in ("n", SELF, INDEPENDENT):
+                agg[k] += row[k]
+
+    assert "EXPOSURE" in pooled and "REGRESSION" in pooled
+    exp, reg = pooled["EXPOSURE"], pooled["REGRESSION"]
+
+    # independence dominates where it matters for security
+    assert exp[INDEPENDENT] / exp["n"] > exp[SELF] / exp["n"]
+    # and is blind where the requirement says nothing
+    assert reg[SELF] / reg["n"] > reg[INDEPENDENT] / reg["n"]
+
+
+def test_independence_still_recovers_defects_the_self_suite_missed():
+    from blindspot.pipeline import INDEPENDENT, SELF
+
+    recovered = sum(len(c.recovered(SELF, INDEPENDENT)) for c in _cloud_cards())
+    assert recovered > 0, "independence should still catch something self-tests missed"
