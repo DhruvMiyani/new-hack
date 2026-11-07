@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Referral Inbox — Blindspot</title>
+  <link rel="stylesheet" href="/referrals.css">
+  <script src="/referrals.js" defer></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/referrals.html"><span aria-hidden="true">✚</span> Referral Inbox</a>
+  <nav aria-label="Demo navigation"><a href="/">Security lab ↗</a><span class="label">SYNTHETIC TRAINING</span></nav>
+</header>
+<main>
+  <section class="hero">
+    <div>
+      <p class="eyebrow">NEUROLOGY · INTAKE SIMULATOR</p>
+      <h1>Read the whole referral.</h1>
+      <p>Review the packet, compare SubQ Snap’s decisions, and route each referral to the right queue.</p>
+    </div>
+    <div class="progress-card">
+      <span class="eyebrow">REVIEW CHALLENGE</span>
+      <strong id="progress">0 of 5 complete</strong>
+      <progress id="progress-bar" max="5" value="0" aria-label="Referrals reviewed"></progress>
+    </div>
+  </section>
+  <div class="workspace">
+    <aside class="panel queue" aria-label="Referral inbox">
+      <div class="panel-head"><div><span class="eyebrow">INCOMING</span><h2>Referral queue</h2></div></div>
+      <div id="queue"></div>
+      <button class="secondary reset" id="reset" type="button">Reset demo</button>
+    </aside>
+    <section class="panel packet" aria-labelledby="case-title">
+      <div class="panel-head">
+        <div><span class="eyebrow" id="case-id">REFERRAL</span><h2 id="case-title">Loading packet…</h2></div>
+        <a id="open-pdf" target="_blank" rel="noopener" hidden>Open PDF ↗</a>
+      </div>
+      <div class="tabs" role="group" aria-label="Packet views">
+        <button type="button" data-tab="pages" aria-pressed="true">PDF text</button>
+        <button type="button" data-tab="scan" hidden aria-pressed="false">Scanned report</button>
+        <button type="button" data-tab="mri" aria-pressed="false">MRI preview</button>
+      </div>
+      <div class="document" id="document"></div>
+    </section>
+    <section class="panel decisions" aria-labelledby="decision-title">
+      <div class="panel-head"><div><span class="eyebrow">SUBQ SNAP · ADVISORY</span><h2 id="decision-title">Compare evidence</h2></div><span id="live" class="label">CHECKING</span></div>
+      <div class="controls">
+        <button type="button" data-scope="letter" class="secondary">Letter only</button>
+        <button type="button" data-scope="packet" class="primary">Full packet</button>
+      </div>
+      <p class="small">The full packet includes all extracted PDF pages and the scanned addendum when available.</p>
+      <div id="comparisons" aria-live="polite"></div>
+      <details class="protocol"><summary>View the fictional clinic protocol</summary><p id="policy"></p></details>
+    </section>
+    <section class="panel review" aria-labelledby="review-title">
+      <div class="panel-head"><div><span class="eyebrow">REVIEWER SIGN-OFF</span><h2 id="review-title">Route this referral</h2></div></div>
+      <form id="review">
+        <label for="route">Disposition</label>
+        <select id="route" required>
+          <option value="">Select a route</option>
+          <option value="critical">Critical · clinician escalation</option>
+          <option value="high">High · priority appointment</option>
+          <option value="medium">Medium · standard appointment</option>
+          <option value="low">Low · routine appointment</option>
+          <option value="needs_review">Needs review · missing or unclear evidence</option>
+        </select>
+        <label for="reason">Override note <span class="small">(if changing the verified route)</span></label>
+        <input id="reason" maxlength="240" placeholder="Reason for the reviewer’s decision">
+        <label class="confirm"><input id="confirmed" type="checkbox" required> I reviewed the source evidence.</label>
+        <button type="submit" class="primary">Confirm disposition →</button>
+      </form>
+      <div id="outcome" aria-live="polite" hidden></div>
+      <p id="error" role="alert"></p>
+    </section>
+    <section class="panel calendar" aria-labelledby="calendar-title">
+      <div class="panel-head"><div><span class="eyebrow">SIMULATED SPECIALIST CALENDAR</span><h2 id="calendar-title">Scheduled and escalated</h2></div></div>
+      <div id="calendar"></div>
+    </section>
+  </div>
+  <footer>Fictional cases for training. The report image supplies written evidence; the MRI phantom is for viewing. <a href="https://www.mcgill.ca/bic/software/brainweb-mri-simulator">BrainWeb</a> · <a href="https://github.com/smart-on-fhir/sample-bulk-fhir-datasets/tree/10-patients">Synthea sample data</a></footer>
+</main>
+</body>
+</html>

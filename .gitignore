@@ -5,3 +5,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 *.egg-info/
+
+# Optional local MRI teaching slice
+/web/dist/referral-assets/brainweb-local.png

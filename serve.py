@@ -24,7 +24,14 @@ from blindspot.security import BundleError, SCENARIOS, run_security
 from blindspot.repository import DEFAULT_TASK, RepositoryError, curate, load_demo, load_github, load_local, propose_change
 from blindspot.context_benchmark import benchmark
 from blindspot.mission import mission_state, investigate, check_mission
+from blindspot import referrals
 
+REFERRAL_ACTIONS = {
+    "/api/referrals/document": referrals.document,
+    "/api/referrals/assess": referrals.assess,
+    "/api/referrals/review": referrals.review,
+    "/api/referrals/reset": lambda data: referrals.reset(),
+}
 BUSY = threading.BoundedSemaphore(2)
 SNAPSHOTS = OrderedDict()
 SNAPSHOT_LOCK = threading.Lock()
@@ -97,6 +104,8 @@ def validate_images(images):
 def perform_action(path, data):
     if not isinstance(data, dict):
         raise ValueError("Expected a JSON object.")
+    if path in REFERRAL_ACTIONS:
+        return REFERRAL_ACTIONS[path](data)
     if path == "/api/mission/investigate":
         payload = dict(data)
         payload["images"] = validate_images(data.get("images", []))
@@ -138,6 +147,8 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        if self.path.startswith("/api/referrals"):
+            self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 
@@ -146,6 +157,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.respond(403, {"error": "Local access only."})
         if self.path == "/api/status":
             return self.respond(200, {"mode": "local", "meta": MetaMuse().available, "subq": SubQSnap().available})
+        if self.path == "/api/referrals":
+            return self.respond(200, referrals.inbox())
         if self.path == "/api/mission":
             return self.respond(200, mission_state())
         route = urlsplit(self.path).path
@@ -160,7 +173,7 @@ class Handler(SimpleHTTPRequestHandler):
         allowed_origins = (f"http://127.0.0.1:{self.server.server_port}", f"http://localhost:{self.server.server_port}")
         if not self._host_ok() or (origin and origin not in allowed_origins):
             return self.respond(403, {"error": "Local origin required."})
-        if self.path not in ("/api/security", "/api/gcp", "/api/repository/load", "/api/repository/curate", "/api/repository/benchmark", "/api/repository/propose", "/api/mission/investigate", "/api/mission/check"):
+        if self.path not in REFERRAL_ACTIONS and self.path not in ("/api/security", "/api/gcp", "/api/repository/load", "/api/repository/curate", "/api/repository/benchmark", "/api/repository/propose", "/api/mission/investigate", "/api/mission/check"):
             return self.respond(404, {"error": "Unknown action."})
         if self.headers.get("Content-Type", "").split(";")[0] != "application/json":
             return self.respond(415, {"error": "Send JSON."})
