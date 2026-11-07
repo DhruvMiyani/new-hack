@@ -1,5 +1,20 @@
 # Blindspot
 
+### Security workbench
+
+[Open the hosted sandbox](https://blindspot-security-lab.dhruvmiyani26.chatgpt.site)
+· [Local setup and GCP connection](WORKBENCH.md)
+
+![Blindspot security workbench](docs/workbench.jpg)
+
+Inspect cloud-exposure and permission changes, reproduce the failed access
+boundary, and verify a repair against the same frozen checks. The hosted
+sandbox is private (ChatGPT sign-in) and replays recorded Python results.
+Run `.venv/bin/python serve.py` for fresh execution at http://127.0.0.1:8765,
+optional Meta/SubQ screenshot reasoning, and read-only GCP inspection.
+
+---
+
 **When you ask a coding agent to write code *and its own tests*, how much safety does that actually buy? We measured it.**
 
 ```
