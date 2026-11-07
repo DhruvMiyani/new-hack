@@ -279,7 +279,38 @@ class SubQSnap:
         """How much `state` text fits, leaving room for the questions."""
         return int((SUBQ_CONTEXT_TOKENS - reserve_tokens) * CHARS_PER_TOKEN)
 
-    def decide(self, state: str | dict | list, questions: dict[str, dict], timeout: float = 90.0) -> DecisionResult:
+    # Documented ceilings for the Decisions API image payload.
+    MAX_IMAGES = 4
+    MAX_IMAGE_BYTES = 4 * 1024 * 1024
+    MAX_TOTAL_IMAGE_BYTES = 8 * 1024 * 1024
+
+    def decide(
+        self,
+        state: str | dict | list,
+        questions: dict[str, dict],
+        timeout: float = 90.0,
+        images: list[dict] | None = None,
+    ) -> DecisionResult:
+        """images: [{"mediaType": "image/png", "base64": "..."}], max 4.
+
+        Snap is multimodal, so the same question can be asked with the context
+        delivered as pixels instead of text -- which is the only way to compare
+        the two paths on identical information.
+        """
+        # Payload limits are checked before the key: a malformed request is a
+        # programming error worth reporting whether or not auth is configured.
+        if images:
+            if len(images) > self.MAX_IMAGES:
+                return DecisionResult(
+                    error=f"too many images: {len(images)} > {self.MAX_IMAGES}"
+                )
+            total = sum(len(i.get("base64", "")) * 3 // 4 for i in images)
+            oversize = [i for i in images if len(i.get("base64", "")) * 3 // 4 > self.MAX_IMAGE_BYTES]
+            if oversize:
+                return DecisionResult(error="an image exceeds the 4 MiB per-image limit")
+            if total > self.MAX_TOTAL_IMAGE_BYTES:
+                return DecisionResult(error="images exceed the 8 MiB total limit")
+
         if not self.available:
             return DecisionResult(error="SUBQ_API_KEY is not set")
 
@@ -294,7 +325,10 @@ class SubQSnap:
         else:
             truncated = False
 
-        body = json.dumps({"model": self.model, "state": state, "questions": questions}).encode()
+        payload = {"model": self.model, "state": state, "questions": questions}
+        if images:
+            payload["images"] = images
+        body = json.dumps(payload).encode()
         req = urllib.request.Request(
             self.url,
             data=body,

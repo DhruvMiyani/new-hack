@@ -19,6 +19,7 @@ load_dotenv()
 from blindspot import pipeline            # noqa: E402  (after load_dotenv)
 from blindspot.providers import MetaMuse, SubQSnap, status  # noqa: E402
 from blindspot.calibration import calibrate, render_calibration  # noqa: E402
+from blindspot.localize import localise, render_localisation  # noqa: E402
 from blindspot.matrix import render_matrix, run_matrix     # noqa: E402
 from blindspot.providers import AUTHOR_MODELS              # noqa: E402
 from blindspot.report import render_aggregate, render_run   # noqa: E402
@@ -172,6 +173,78 @@ def cmd_calibrate(args) -> int:
     return 0
 
 
+def cmd_localize(args) -> int:
+    """Point at the guilty line over hundreds of candidates, only when sure."""
+    from blindspot.equivalence import partition
+    from blindspot.measure import Suite, validate
+    from blindspot.mutate import generate
+    from blindspot.runner import run_suite
+    from blindspot.screenshot import context_image
+    from blindspot.tasks import OFFLINE_INDEPENDENT_TESTS
+
+    snap = SubQSnap()
+    if not snap.available:
+        print("This needs a SubQ key. Get 100M free tokens at console.subq.ai,")
+        print("set SUBQ_API_KEY in .env, then re-run.")
+        return 2
+
+    tasks = [TASKS[args.task]] if args.task in TASKS else list(TASKS.values())
+
+    for task in tasks:
+        baseline = task.reference
+        suite = Suite("spec-only", "offline", OFFLINE_INDEPENDENT_TESTS[task.name])
+        validate(suite, baseline)
+        if not suite.valid:
+            print(f"{task.name}: suite invalid on correct code, skipping")
+            continue
+
+        real, _, _ = partition(baseline, generate(baseline), task.target, args.trials)
+
+        # A localisation needs something to localise FROM: a test that actually
+        # fails, plus its real output. Defects no suite catches are skipped --
+        # inventing a failure would make the measurement meaningless.
+        failing: dict[str, tuple[str, str]] = {}
+        images: dict[str, str] = {}
+        for m in real:
+            res = run_suite(m.source, suite.source)
+            if not res.detects:
+                continue
+            f = res.failures[0]
+            output = f"{f.name} failed: {f.kind}: {f.error}"
+            failing[m.mutant_id] = (suite.source, output)
+            if args.multimodal:
+                images[m.mutant_id] = context_image(m.source, suite.source, output)
+
+        if not failing:
+            print(f"{task.name}: no defect produced a failing test, skipping")
+            continue
+
+        distractors = None
+        if args.repo_scale:
+            import pathlib
+
+            root = pathlib.Path("codegate")
+            distractors = [
+                (p.name, p.read_text())
+                for p in sorted(root.glob("*.py"))
+                if p.name != "__init__.py"
+            ]
+
+        print(f"{task.name}: localising {len(failing)} defect(s)"
+              + (" (text and screenshot)" if args.multimodal else "")
+              + (f" against lines pooled from {len(distractors)} repo file(s)"
+                 if distractors else ""))
+        report = localise(
+            task, real, failing, snap=snap, images=images or None, distractors=distractors
+        )
+        print(render_localisation(report))
+        print()
+
+    print(f"subq usage: {snap.usage.input_tokens} input tokens = "
+          f"${snap.usage.input_tokens * 0.04 / 1_000_000:.4f} (output free)")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         prog="verify", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -205,6 +278,18 @@ def main() -> int:
                      help="also ask each question inverted, to measure self-consistency "
                           "(doubles the call count; needs no ground truth)")
     cal.set_defaults(fn=cmd_calibrate)
+
+    loc = sub.add_parser(
+        "localize", help="which line holds the defect? confidence-gated, over the whole file"
+    )
+    loc.add_argument("--task", help=f"one of: {', '.join(TASKS)}")
+    loc.add_argument("--trials", type=int, default=400)
+    loc.add_argument("--repo-scale", action="store_true",
+                     help="pool candidate lines from the whole repo, up to the 255-option "
+                          "ceiling, so the random baseline is near zero")
+    loc.add_argument("--multimodal", action="store_true",
+                     help="also ask with the context as a screenshot, to compare modalities")
+    loc.set_defaults(fn=cmd_localize)
 
     sub.add_parser("status", help="show provider configuration").set_defaults(fn=cmd_status)
 
