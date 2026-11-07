@@ -11,6 +11,12 @@
 
 AIE Code Summit 2026 — problem statement: **Trust but Verify**.
 
+**Open the visual workbench:** `.venv/bin/python serve.py`, then visit
+http://127.0.0.1:8765. Inspect a security change, reproduce its access failure,
+and verify a repair against the same independent checks. Includes a read-only
+GCP connector and optional model-mode screenshot input.
+See [workbench setup and scope](WORKBENCH.md).
+
 **New security workflow:** reproduce public-storage exposure, administrator
 escalation, and revoked-employee access; propose a repair and rerun frozen
 independent checks. Start with
