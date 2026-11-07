@@ -6,23 +6,46 @@ Tesseract displays a local OCR transcript and verifies the signed scan in R101.
 On macOS install both with `brew install poppler tesseract`. The Decisions API uses
 `SUBQ_BASE_URL` and `SUBQ_API_KEY` from your local environment.
 
-1. Open **North Clinic (R101)** and run **Letter only**. The signed addendum is absent
-   from the input, so the case should go to Needs review.
-2. Run **Full packet**. Snap receives labelled PDF text plus a PNG of the scanned
-   signed addendum. Open **Scanned report** to see what changed the route. Check
-   the source and confirm **Critical** to send it to the simulated clinician queue.
-3. Try **Valley Clinic (R104)** to approve a routine slot. **Maple Clinic (R105)**
-   has a lab order and no signed report, so it stays in Needs review.
+The eFax worklist uses five preloaded fictional transmissions. Each has a
+sender, fax number, receive time, page count, and preview. The
+[UCSF Neurology fax instructions](https://www.ucsfhealth.org/locations/neurology-complex-diagnosis-mission-bay/refer)
+and [eClinicalWorks fax inbox pattern](https://www.eclinicalworks.com/products-services/ehr/)
+inform the workflow. See [design notes](docs/referrals/DESIGN.md).
 
-Snap suggests a route, identifies the supporting source, and distinguishes lab
-orders from results. The app independently checks the explicit signed routing
-instruction before a reviewer can book. Critical and missing-report cases
-cannot enter the appointment calendar through a lower priority. The five
-packets, protocol, calendar, and reviewer actions are fictional training data.
+1. **North Clinic (R101).** Compare **Letter only** with **Full packet**. Snap
+   moves from Needs review to Critical when it sees the signed addendum on
+   page 2. Confirm the clinician escalation.
+2. **Cedar Clinic (R102).** The signed instruction is High. Page 1 documents
+   Alameda County, outside the sample specialist scheduling area. The rules
+   check sends it to intake coordination without booking. Harbor Clinic
+   (R103) has no documented county, so intake must verify it.
+3. **Valley Clinic (R104).** San Mateo County is eligible. Confirm Low to
+   book a routine slot in the simulated calendar.
+
+## Exactly what SubQ does
+
+The server uses `subq-snap-1.1` by default through `POST /v1/systemone`.
+Poppler extracts the PDF into labelled pages. The model receives those pages,
+the patient county field extracted from page 1, and the fictional clinic
+protocol and rules book. For R101 in Full packet mode it also gets a PNG
+of the scanned addendum labelled `SCAN`. Letter only sends page 1 with
+zero images. The MRI preview stays in the viewer.
+
+The request asks for `route` (clinical queue), `source` (supporting page),
+`lab` (order versus result), `complete` (legibility of a signed instruction),
+and `acceptance` (administrative eligibility). The UI exposes the
+question list, evidence labels, token count and returned scores. A model
+result is advisory. The server separately reads county from the PDF and
+applies the rules. Reviewer sign-off is required to book. A signed critical
+flag goes to the clinician queue regardless of county. This is a fictional
+office scheduling rule, and outside-area cases get intake coordination.
 
 ## Asset provenance
 
-- The PDF letters, signed reports, and workflow labels were authored for this demo.
+- The fax first page comes from the public [VA Form 10-10172 medical
+  request for service](https://www.va.gov/forms/10-10172/), with fictional fields
+  added and the page stamped DEMO ONLY. The attached signed report and lab
+  pages were authored for this demo using the [ACR report structure](https://www.acr.org/-/media/ACR/Files/Practice-Parameters/CommunicationDiag.pdf) and the [NIDDK annotated lab result example](https://repository.niddk.nih.gov/media/studies/grade/Manuals/GRADE%20Lab%20MOP.pdf#page=46).
   Two numeric lab observations and their units were taken from the [SMART on FHIR
   Synthea sample archive](https://github.com/smart-on-fhir/sample-bulk-fhir-datasets)
   at commit `54fa822575407ffc3255bc1d510749a28c29eb38`. The source repository uses
@@ -40,10 +63,12 @@ packets, protocol, calendar, and reviewer actions are fictional training data.
   Methods*, IEEE TMI 18(11), 1999.
 
 The PDFs are bundled. To regenerate them and install the local MRI preview, use
-a Python environment with ReportLab and Pillow.
+a Python environment with ReportLab, Pillow and pypdf.
 
 ```bash
 curl -fsSL 'https://codeload.github.com/smart-on-fhir/sample-bulk-fhir-datasets/zip/54fa822575407ffc3255bc1d510749a28c29eb38' -o /tmp/referral-synthea.zip
 curl -fsSL 'https://raw.githubusercontent.com/liamchalcroft/medtokenizers/3250f9505fc569334b981bf9154c4b18682e5d4d/src/medtokenizers/assets/t1w_brainweb.nii.gz' -o /tmp/referral-brainweb.nii.gz
 python3 scripts/build_referral_fixtures.py /tmp/referral-synthea.zip --brainweb /tmp/referral-brainweb.nii.gz
+curl -fsSL 'https://www.va.gov/vaforms/medical/pdf/VA%20Form%2010-10172.pdf' -o /tmp/referral-va-template.pdf
+python3 scripts/build_referral_faxes.py /tmp/referral-va-template.pdf
 ```
