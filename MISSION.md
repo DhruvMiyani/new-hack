@@ -22,12 +22,12 @@ other generative model is used by this mission.
 
 ## The one-minute demo
 
-1. **Inspect:** a fictional SaaS company enabled public previews. Explore the
+1. **Inspect:** a fictional SaaS company enabled shareable previews. Explore the
    cloud map and inspect its deployment, storage, application, and policy clues.
 2. **Predict:** choose the resource/access path you suspect is exposed.
 3. **Investigate:** ask SubQ to weigh the hypotheses and select relevant evidence.
    Its probabilities are advisory predictions, shown separately from test results.
-4. **Reproduce:** execute the local access checks and inspect the unexpected read.
+4. **Reproduce:** execute the local access checks and inspect Attacker View. It shows anonymous requests for fictional customer records, a database export, and an internal source archive stored as objects in the production bucket.
 5. **Repair:** choose the minimal permission repair and rerun the same contract.
    Try deny-everything to demonstrate why blocked legitimate traffic cannot win.
 

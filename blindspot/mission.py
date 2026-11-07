@@ -30,11 +30,16 @@ ARTIFACTS = [
     ('A11','service/preview-handler.py','Application preview handler','app-service'),
     ('A12','docs/repair-review.md','What a successful repair preserves','app-service'),
 ]
+PRODUCTION_OBJECTS = (
+    "customer-records.csv",
+    "production-db-export.sql.gz",
+    "internal-source.tar.gz",
+)
 NODES = [
     {'id':'internet','label':'Public internet','kind':'actor','subtitle':'No sign-in. Direct object requests.'},
-    {'id':'preview-service','label':'Preview service','kind':'service','subtitle':'The new document preview feature'},
+    {'id':'preview-service','label':'Preview service','kind':'service','subtitle':'The new shareable preview feature'},
     {'id':'app-service','label':'Application service','kind':'service','subtitle':'Authenticated customer application'},
-    {'id':'prod-backups','label':'Production backups','kind':'bucket','subtitle':'Private customer source documents'},
+    {'id':'prod-backups','label':'Production backups','kind':'bucket','subtitle':'Private records, database exports, and source archives'},
     {'id':'public-assets','label':'Public assets','kind':'bucket','subtitle':'Logo and public preview assets'},
     {'id':'staging-backups','label':'Staging backups','kind':'bucket','subtitle':'Fictional internal test documents'},
 ]
@@ -109,7 +114,7 @@ def mission_state():
     artifacts,requirements,baseline,candidate=_fixture()
     size=sum(len(a['content'].encode()) for a in artifacts)
     return {'id':'public-storage-001','title':'Stop the leak. Keep the lights on.',
-            'story':'A fictional company launched public document previews. A permission change may have opened more than preview assets. Find the exposed resource, reproduce the access, then repair it without breaking legitimate traffic.',
+            'story':'A fictional company enabled shareable previews. A storage permission change may let anyone read private customer records, database exports, and source archives. Find the exposed bucket and close the public path without breaking the app.',
             'artifacts':artifacts,'nodes':copy.deepcopy(NODES),'hypotheses':copy.deepcopy(HYPOTHESES),
             'repairs':copy.deepcopy(REPAIRS),'contract_hash':_digest(_contract(requirements)),
             'context':{'files':len(artifacts),'bytes':size,'estimated_tokens':round(sum(len(a['content']) for a in artifacts)/CHARS_PER_TOKEN)},
@@ -162,6 +167,10 @@ def check_mission(data):
     verdict='PASS' if not failures else 'BLOCK'
     return {'verdict':verdict,'won':repair!='candidate' and verdict=='PASS','checks':checks,
             'contract_hash':_digest(frozen),'candidate_hash':_digest(state),'state':state,
+            'attacker_reads': [
+                {'object': f"object://prod-backups/{name}", 'actual': exposure['actual']}
+                for name in PRODUCTION_OBJECTS
+            ],
             'summary':f'{passed}/{len(checks)} frozen checks passed. '+('Private backups protected; required application, staging, and public-asset reads preserved.' if not failures else f'{len(failures)} access expectations violated.'),
             'prediction_correct':hypothesis=='prod-public','prediction_scope':'Player prediction about the original proposed change, before any repair.','repair':repair,'scope':SCOPE,
             'passed':passed,'total':len(checks),'failures':len(failures),
