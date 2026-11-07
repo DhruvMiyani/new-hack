@@ -8,7 +8,7 @@ python3 -m venv .venv
 .venv/bin/python serve.py
 ```
 
-Open http://127.0.0.1:8765. The server binds to loopback only and rejects
+Open http://localhost:8765. The server binds to loopback only and rejects
 cross-origin actions. It serves only `web/dist/`, never the repository or `.env`.
 
 The primary workflow is **inspect change → execute probes → inspect evidence →
@@ -23,20 +23,20 @@ An optional console screenshot is sent to SubQ with complete labelled artifacts;
 image judgments are advisory and cannot override executed checks. Images are
 limited to PNG/JPEG/WebP under 2 MiB and are not persisted.
 
-## Hosted sandbox
+## Local execution only
 
-The hosted page has the same interface but **explicitly replays recorded Python
-execution results**. It does not execute Python, connect to your Google account,
-or make model calls. Its mode badge and exported evidence identify replay mode.
+The workbench runs at http://localhost:8765 with no ChatGPT login or hosted
+website. Verification and repairs always call the local Python backend. If it
+is unavailable, verification is disabled; recorded evidence is never used as
+a substitute for fresh execution.
 
-Regenerate its fixtures after changing the verifier:
+The HTML/CSS/JavaScript lives in `web/dist/`; no JavaScript build is needed.
+Reference snapshots in `scenarios.json` supply the initial change review and
+artifact display. Regenerate these after changing the scenario configuration:
 
 ```bash
 .venv/bin/python scripts/export_sandbox.py
 ```
-
-The source is plain HTML/CSS/JavaScript in `web/dist/`. It can be served by any
-static host; no JavaScript build or package installation is required.
 
 ## Real GCP, read-only
 

@@ -2,15 +2,13 @@
 
 ### Security workbench
 
-[Open the hosted sandbox](https://blindspot-security-lab.dhruvmiyani26.chatgpt.site)
-· [Local setup and GCP connection](WORKBENCH.md)
+[Open the local app](http://localhost:8765) · [Local setup and GCP connection](WORKBENCH.md)
 
 ![Blindspot security workbench](docs/workbench.jpg)
 
 Inspect cloud-exposure and permission changes, reproduce the failed access
-boundary, and verify a repair against the same frozen checks. The hosted
-sandbox is private (ChatGPT sign-in) and replays recorded Python results.
-Run `.venv/bin/python serve.py` for fresh execution at http://127.0.0.1:8765,
+boundary, and verify a repair against the same frozen checks.
+Run `.venv/bin/python serve.py` for fresh execution at http://localhost:8765,
 optional Meta/SubQ screenshot reasoning, and read-only GCP inspection.
 
 ---
@@ -27,7 +25,7 @@ optional Meta/SubQ screenshot reasoning, and read-only GCP inspection.
 AIE Code Summit 2026 — problem statement: **Trust but Verify**.
 
 **Open the visual workbench:** `.venv/bin/python serve.py`, then visit
-http://127.0.0.1:8765. Inspect a security change, reproduce its access failure,
+http://localhost:8765. Inspect a security change, reproduce its access failure,
 and verify a repair against the same independent checks. Includes a read-only
 GCP connector and optional model-mode screenshot input.
 See [workbench setup and scope](WORKBENCH.md).
