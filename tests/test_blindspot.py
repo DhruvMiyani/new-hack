@@ -529,3 +529,107 @@ def test_calibration_without_a_key_explains_itself():
     rep = calibrate(TASKS["allocate"], _two_suites(), [], snap=_Absent())
     assert not rep.usable
     assert any("SUBQ_API_KEY" in n for n in rep.notes)
+
+
+class _SymmetricSnap(_StubSnap):
+    """Answers the inverted question consistently: 1 - p."""
+
+    def decide(self, state, questions, timeout=90.0):
+        from blindspot.providers import Answer, DecisionResult
+
+        self.seen.append(state)
+        self.usage.add(1000, 0, 0, "")
+        if "will_all_pass" in questions:
+            return DecisionResult(
+                answers={"will_all_pass": Answer("will_all_pass", "noul", 1 - self.probability)},
+                input_tokens=1000,
+            )
+        return DecisionResult(
+            answers={
+                "will_catch": Answer("will_catch", "noul", self.probability),
+                "severity": Answer("severity", "score", 2, confidence=0.7),
+            },
+            input_tokens=1000,
+        )
+
+
+class _InconsistentSnap(_StubSnap):
+    """Answers both framings identically -- a self-contradiction."""
+
+    def decide(self, state, questions, timeout=90.0):
+        from blindspot.providers import Answer, DecisionResult
+
+        self.seen.append(state)
+        self.usage.add(1000, 0, 0, "")
+        if "will_all_pass" in questions:
+            return DecisionResult(
+                answers={"will_all_pass": Answer("will_all_pass", "noul", self.probability)},
+                input_tokens=1000,
+            )
+        return DecisionResult(
+            answers={
+                "will_catch": Answer("will_catch", "noul", self.probability),
+                "severity": Answer("severity", "score", 1, confidence=0.5),
+            },
+            input_tokens=1000,
+        )
+
+
+def _proven():
+    return partition(CORRECT, generate(CORRECT), "allocate", trials=300)
+
+
+def test_decision_score_matches_the_published_formula():
+    """Accuracy less Brier, x100 -- the Artificial Analysis Decision Index formula."""
+    from blindspot.calibration import calibrate
+
+    real, _, table = _proven()
+    rep = calibrate(TASKS["allocate"], _two_suites(), real, snap=_StubSnap(0.9), classifications=table)
+    assert rep.decision_score == pytest.approx((rep.accuracy - rep.brier) * 100)
+    assert -100.0 <= rep.decision_score <= 100.0
+
+
+def test_symmetry_is_zero_for_a_self_consistent_predictor():
+    from blindspot.calibration import calibrate
+
+    real, _, table = _proven()
+    rep = calibrate(
+        TASKS["allocate"], _two_suites(), real,
+        snap=_SymmetricSnap(0.8), classifications=table, symmetry=True,
+    )
+    assert rep.symmetry == pytest.approx(0.0, abs=1e-9)
+
+
+def test_symmetry_catches_a_self_contradicting_predictor():
+    """Answering 'will a test fail?' and 'will all pass?' the same way is incoherent."""
+    from blindspot.calibration import calibrate
+
+    real, _, table = _proven()
+    rep = calibrate(
+        TASKS["allocate"], _two_suites(), real,
+        snap=_InconsistentSnap(0.9), classifications=table, symmetry=True,
+    )
+    # p + p - 1 = 0.8 for p = 0.9
+    assert rep.symmetry == pytest.approx(0.8, abs=1e-9)
+    worst = rep.symmetry_worst
+    assert worst is not None and worst.symmetry_gap == pytest.approx(0.8)
+
+
+def test_symmetry_is_skipped_unless_requested():
+    from blindspot.calibration import calibrate
+
+    real, _, table = _proven()
+    rep = calibrate(TASKS["allocate"], _two_suites(), real, snap=_SymmetricSnap(), classifications=table)
+    assert rep.symmetry is None
+    assert all(p.predicted_negated is None for p in rep.predictions)
+
+
+def test_symmetry_needs_no_ground_truth():
+    """The consistency metric must be computable with no actual outcomes at all."""
+    from blindspot.calibration import Prediction
+    from blindspot.mutate import generate as gen
+
+    m = gen(CORRECT)[0]
+    p = Prediction("s", m, predicted=0.7, actual=None, predicted_negated=0.3)
+    assert not p.usable                      # no ground truth
+    assert p.symmetry_gap == pytest.approx(0.0)   # yet still self-consistent

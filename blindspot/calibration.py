@@ -53,6 +53,10 @@ class Prediction:
     predicted: float | None          # SubQ's probability that the suite catches it
     actual: bool | None              # measured by execution
     severity: float | None = None     # SubQ's severity score, if asked
+    # Same question asked inverted ("will every test pass?"). A self-consistent
+    # model answers 1 - predicted. This is the AA-Symmetry axis of the
+    # Artificial Analysis Decision Index, which needs no ground truth at all.
+    predicted_negated: float | None = None
     error: str = ""
 
     @property
@@ -70,6 +74,13 @@ class Prediction:
         if not self.usable:
             return None
         return (self.predicted - (1.0 if self.actual else 0.0)) ** 2
+
+    @property
+    def symmetry_gap(self) -> float | None:
+        """|p + p_negated - 1|. Zero means perfectly self-consistent."""
+        if self.predicted is None or self.predicted_negated is None:
+            return None
+        return abs(self.predicted + self.predicted_negated - 1.0)
 
 
 @dataclass
@@ -181,6 +192,32 @@ class CalibrationReport:
         rec = c["tp"] / (c["tp"] + c["fn"]) if (c["tp"] + c["fn"]) else None
         return prec, rec
 
+    @property
+    def decision_score(self) -> float | None:
+        """The Artificial Analysis Decision Index formula, on this domain.
+
+        'Accuracy less the Brier score of the probability the model gives its
+        chosen answer, from 0 to 100.' Computed here exactly that way so the
+        number is comparable in kind to the published index -- though not in
+        value, since the index aggregates six evaluations and none of them is
+        software verification.
+        """
+        acc, br = self.accuracy, self.brier
+        if acc is None or br is None:
+            return None
+        return (acc - br) * 100
+
+    @property
+    def symmetry(self) -> float | None:
+        """Mean |p + p_negated - 1| over pairs where both framings were asked."""
+        gaps = [g for p in self.predictions if (g := p.symmetry_gap) is not None]
+        return statistics.mean(gaps) if gaps else None
+
+    @property
+    def symmetry_worst(self) -> Prediction | None:
+        pairs = [p for p in self.predictions if p.symmetry_gap is not None]
+        return max(pairs, key=lambda p: p.symmetry_gap) if pairs else None
+
     def buckets(self) -> list[Bucket]:
         out = [Bucket(lo, hi) for lo, hi in BUCKETS]
         for p in self.usable:
@@ -227,12 +264,43 @@ def _ask(snap: SubQSnap, task: Task, suite: Suite, mutant: Mutant) -> tuple[floa
     return predicted, severity, ""
 
 
+def _ask_negated(snap: SubQSnap, task: Task, suite: Suite, mutant: Mutant) -> float | None:
+    """The same question, inverted. Tests self-consistency, not correctness.
+
+    Criteria are swapped as well as the wording, so a model that merely pattern
+    matches on phrasing has no shortcut to a consistent answer.
+    """
+    state = (
+        f"[SPEC]\n{task.spec}\n\n"
+        f"[SIGNATURE]\n{task.signature}\n\n"
+        f"[TEST SUITE]\n{suite.source}\n\n"
+        f"[CHANGE INTRODUCED INTO THE IMPLEMENTATION]\n"
+        f"At line {mutant.line}: {mutant.description}\n"
+        f"The original line was: {mutant.original_line}\n\n"
+        f"[IMPLEMENTATION AFTER THE CHANGE]\n{mutant.source}\n"
+    )
+    res = snap.decide(
+        state,
+        {
+            "will_all_pass": noul(
+                "If this TEST SUITE is run against the implementation after the change, will "
+                "every one of its tests pass?",
+                when_true="No test reaches the changed behaviour, so the suite is entirely green",
+                when_false="At least one test exercises an input whose result the change alters",
+            )
+        },
+    )
+    a = res.get("will_all_pass") if res.ok else None
+    return float(a.value) if a and a.value is not None else None
+
+
 def calibrate(
     task: Task,
     suites: list[Suite],
     defects: list[Mutant],
     snap: SubQSnap | None = None,
     classifications: dict[str, Equivalence] | None = None,
+    symmetry: bool = False,
 ) -> CalibrationReport:
     """Predict first, then execute, then score the predictions."""
     snap = snap or SubQSnap()
@@ -261,12 +329,14 @@ def calibrate(
     def _one(pair):
         s, m = pair
         predicted, severity, err = _ask(snap, task, s, m)
+        negated = _ask_negated(snap, task, s, m) if (symmetry and predicted is not None) else None
         return Prediction(
             suite_name=s.name,
             mutant=m,
             predicted=predicted,
             actual=m.mutant_id in truth[s.name],
             severity=severity,
+            predicted_negated=negated,
             error=err,
         )
 
@@ -309,6 +379,13 @@ def render_calibration(report: CalibrationReport) -> str:
     if rec is not None:
         out.append(f"  recall                {rec:.0%}   (of the catches, how many it foresaw)")
     out.append(f"  confusion             tp={c['tp']} fp={c['fp']} tn={c['tn']} fn={c['fn']}")
+    ds = report.decision_score
+    if ds is not None:
+        out.append("")
+        out.append(f"  DECISION SCORE        {ds:.1f} / 100")
+        out.append("    = (accuracy - Brier) x 100, the Artificial Analysis Decision Index")
+        out.append("      formula, applied to software verification -- a domain none of the")
+        out.append("      index's six component evaluations covers.")
     out.append("")
     out.append(f"  Brier score           {brier:.3f}   (lower is better)")
     out.append(f"  always-guess-base-rate{base_brier:>7.3f}   <- the bar to beat (base rate {base:.0%})")
@@ -328,6 +405,20 @@ def render_calibration(report: CalibrationReport) -> str:
             f"{b.observed:>10.2f} {b.gap:>+8.2f}"
         )
     out.append("  gap > 0 means overconfident, gap < 0 means underconfident")
+
+    sym = report.symmetry
+    if sym is not None:
+        out.append("\nself-consistency (AA-Symmetry style: same question, inverted)")
+        out.append('  asked "will a test fail?" and "will every test pass?" with criteria swapped.')
+        out.append(f"  mean |p + p_inverted - 1|   {sym:.3f}   (0.000 = perfectly consistent)")
+        worst = report.symmetry_worst
+        if worst is not None:
+            out.append(
+                f"  worst case: p={worst.predicted:.2f} inverted={worst.predicted_negated:.2f} "
+                f"gap={worst.symmetry_gap:.2f}  [{worst.mutant.operator}]"
+            )
+        out.append("  This needs no ground truth, so it is the one metric here that")
+        out.append("  transfers to any domain without a reference implementation.")
 
     # Severity ranking, checked against an objective proxy: the number of inputs
     # differential testing had to try before the defect showed itself.

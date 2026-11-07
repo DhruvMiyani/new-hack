@@ -161,7 +161,9 @@ def cmd_calibrate(args) -> int:
 
         print(f"{task.name}: {len(real)} proven defect(s) x {len([s for s in suites if s.valid])} "
               f"suite(s) = {len(real) * len([s for s in suites if s.valid])} predictions to score\n")
-        report = calibrate(task, suites, real, snap=snap, classifications=table)
+        report = calibrate(
+            task, suites, real, snap=snap, classifications=table, symmetry=args.symmetry
+        )
         print(render_calibration(report))
         print()
 
@@ -199,6 +201,9 @@ def main() -> int:
     cal.add_argument("--trials", type=int, default=400)
     cal.add_argument("--offline-suites", action="store_true",
                      help="use the stand-in suites even if a Meta key is set")
+    cal.add_argument("--symmetry", action="store_true",
+                     help="also ask each question inverted, to measure self-consistency "
+                          "(doubles the call count; needs no ground truth)")
     cal.set_defaults(fn=cmd_calibrate)
 
     sub.add_parser("status", help="show provider configuration").set_defaults(fn=cmd_status)
