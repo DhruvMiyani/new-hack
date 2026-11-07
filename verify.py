@@ -19,6 +19,7 @@ load_dotenv()
 from blindspot import pipeline            # noqa: E402  (after load_dotenv)
 from blindspot.providers import MetaMuse, SubQSnap, status  # noqa: E402
 from blindspot.calibration import calibrate, render_calibration  # noqa: E402
+from blindspot.haystack import DEFAULT_DEPTHS, DEFAULT_SIZES, render_haystack, run_haystack  # noqa: E402
 from blindspot.localize import localise, render_localisation  # noqa: E402
 from blindspot.matrix import render_matrix, run_matrix     # noqa: E402
 from blindspot.queue_triage import build_queue, render_triage, triage  # noqa: E402
@@ -298,6 +299,43 @@ def cmd_queue(args) -> int:
     return 0
 
 
+def cmd_haystack(args) -> int:
+    """Hide one known bug in up to 384K tokens of real code and ask for the line."""
+    from blindspot.equivalence import partition
+    from blindspot.mutate import generate
+
+    snap = SubQSnap()
+    if not snap.available:
+        print("This needs a SubQ key. Get 100M free tokens at console.subq.ai,")
+        print("set SUBQ_API_KEY in .env, then re-run.")
+        return 2
+
+    task = TASKS[args.task] if args.task in TASKS else TASKS["allocate"]
+    real, _, table = partition(
+        task.reference, generate(task.reference), task.target, args.trials
+    )
+    if not real:
+        print(f"{task.name}: no provable defect to hide")
+        return 1
+
+    # Use a defect we have proved real, so a miss is a retrieval failure and
+    # never an argument about whether the needle was a bug at all.
+    mutant = real[0]
+    eq = table.get(mutant.mutant_id)
+    print(f"needle: {mutant.description}")
+    if eq and eq.witness:
+        print(f"proved real by witness: {eq.witness.render()}")
+
+    sizes = tuple(int(x) for x in args.sizes.split(",")) if args.sizes else DEFAULT_SIZES
+    depths = tuple(float(x) for x in args.depths.split(",")) if args.depths else DEFAULT_DEPTHS
+    est = sum(sizes) * len(depths) * 0.04 / 1_000_000
+    print(f"{len(sizes) * len(depths)} trial(s); estimated cost ${est:.3f}\n")
+
+    report = run_haystack(task, mutant, sizes=sizes, depths=depths, snap=snap)
+    print(render_haystack(report))
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         prog="verify", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -356,6 +394,15 @@ def main() -> int:
     q.add_argument("--multimodal-every", type=int, default=0,
                    help="send every Nth change as a screenshot instead of text")
     q.set_defaults(fn=cmd_queue)
+
+    hay = sub.add_parser(
+        "haystack", help="one known bug hidden in up to 384K tokens of real code"
+    )
+    hay.add_argument("--task", help=f"one of: {', '.join(TASKS)}")
+    hay.add_argument("--sizes", help="comma-separated context sizes in tokens")
+    hay.add_argument("--depths", help="comma-separated needle depths 0.0-1.0")
+    hay.add_argument("--trials", type=int, default=400)
+    hay.set_defaults(fn=cmd_haystack)
 
     sub.add_parser("status", help="show provider configuration").set_defaults(fn=cmd_status)
 

@@ -8,6 +8,8 @@ a missed defect, and a defect is never counted without a witness.
 
 from __future__ import annotations
 
+import ast
+
 import pytest
 
 from blindspot.equivalence import classify, partition
@@ -934,4 +936,91 @@ def test_queue_without_a_key_explains_itself():
 
     rep = triage(_queue(clean=1, cap=1), snap=_Absent())
     assert not rep.orderings
+    assert any("SUBQ_API_KEY" in n for n in rep.notes)
+
+
+# --------------------------------------------------------------------------- #
+# long context: one bug hidden in a large real codebase
+# --------------------------------------------------------------------------- #
+
+
+def _a_mutant():
+    return generate(CORRECT)[0]
+
+
+def test_haystack_scales_to_most_of_the_384k_window():
+    from blindspot.haystack import _filler_files, build
+    from blindspot.providers import SUBQ_CONTEXT_TOKENS
+
+    filler = _filler_files()
+    h = build(_a_mutant().source, "allocate.py", 350_000, 0.5, filler)
+    assert h.tokens > 300_000
+    assert h.window_fraction > 0.75
+    assert h.tokens < SUBQ_CONTEXT_TOKENS          # never exceed the documented window
+
+
+def test_needle_survives_at_every_depth():
+    """A truncated needle would make every accuracy number a lie."""
+    from blindspot.haystack import NEEDLE_MARKER, _filler_files, build
+
+    filler = _filler_files()
+    m = _a_mutant()
+    for depth in (0.0, 0.5, 1.0):
+        h = build(m.source, "allocate.py", 50_000, depth, filler)
+        assert NEEDLE_MARKER in h.state
+        assert m.source.strip()[:60] in h.state
+
+
+def test_needle_is_placed_where_the_depth_asks():
+    from blindspot.haystack import NEEDLE_MARKER, _filler_files, build
+
+    filler = _filler_files()
+    m = _a_mutant()
+    positions = []
+    for depth in (0.0, 0.5, 1.0):
+        h = build(m.source, "allocate.py", 50_000, depth, filler)
+        positions.append(h.state.index(NEEDLE_MARKER) / len(h.state))
+    assert positions[0] < 0.1
+    assert 0.35 < positions[1] < 0.65
+    assert positions[2] > 0.85
+    assert positions[0] < positions[1] < positions[2]
+
+
+def test_build_refuses_a_context_too_small_to_hold_the_needle():
+    from blindspot.haystack import build
+
+    with pytest.raises(ValueError):
+        build(_a_mutant().source, "allocate.py", 10, 0.5, [])
+
+
+def test_haystack_filler_is_real_python_not_padding():
+    from blindspot.haystack import _filler_files
+
+    filler = _filler_files()
+    assert len(filler) > 50
+    for name, src in filler[:20]:
+        assert name.endswith(".py")
+        assert "def " in src or "class " in src or "import " in src
+
+
+def test_haystack_option_set_hits_the_documented_ceiling():
+    from blindspot.haystack import _filler_files, build
+    from blindspot.localize import MAX_OPTIONS
+
+    h = build(_a_mutant().source, "allocate.py", 50_000, 0.5, _filler_files())
+    assert len(h.options) == MAX_OPTIONS
+    assert any(c.key.startswith("allocate.py:") for c in h.options)
+
+
+def test_haystack_without_a_key_explains_itself():
+    from blindspot.haystack import run_haystack
+    from blindspot.providers import SubQSnap
+
+    class _Absent(SubQSnap):
+        @property
+        def available(self):
+            return False
+
+    rep = run_haystack(TASKS["allocate"], _a_mutant(), sizes=(10_000,), depths=(0.5,), snap=_Absent())
+    assert not rep.usable
     assert any("SUBQ_API_KEY" in n for n in rep.notes)
