@@ -6,7 +6,7 @@ Tesseract displays a local OCR transcript and verifies the signed scan in R101.
 On macOS install both with `brew install poppler tesseract`. The Decisions API uses
 `SUBQ_BASE_URL` and `SUBQ_API_KEY` from your local environment.
 
-The eFax worklist uses five preloaded fictional transmissions. Each has a
+The eFax worklist uses 50 preloaded fictional transmissions. Each has a
 sender, fax number, receive time, page count, and preview. The
 [UCSF Neurology fax instructions](https://www.ucsfhealth.org/locations/neurology-complex-diagnosis-mission-bay/refer)
 and [eClinicalWorks fax inbox pattern](https://www.eclinicalworks.com/products-services/ehr/)
@@ -24,25 +24,29 @@ inform the workflow. See [design notes](docs/referrals/DESIGN.md).
 
 ## Inbox-wide live decisions
 
-The default view classifies five referrals in one request with 20 typed
-`choice` questions: urgency, supporting source, lab document type and
-administrative eligibility for each referral. The full request contains 14
-labelled PDF pages and one scanned report image bound to its own referral.
-The app compares priority and eligibility with separate local checks.
+The default view starts with one request containing 100 typed `choice`
+questions, asking for priority and supporting source for each of the 50
+referrals. Full packet mode uses 144 labelled PDF pages and the R101 scan.
+The app checks the proposed priority and source against the signed evidence.
+If a decision conflicts with the source, Snap gets one smaller follow-up
+request covering only the flagged faxes. Unresolved conflicts stay flagged.
+The selected-case workflow evaluates lab document type and administrative
+eligibility separately.
 
-Each clue change sends one request with 10 questions: one `noul` match score
-and one source `choice` per referral. Adding a second clue requires both clues
-to match. The query highlights the existing cards without changing their
-priority. Clicking a result opens the corresponding evidence page.
+Each clue change sends one request with 100 questions, using a `noul` match
+score and a source `choice` for each referral. The request uses page excerpts
+and indexed intake facts with source labels. Adding a second clue requires
+both clues to match. The query highlights the existing cards and preserves
+their priority. Clicking a result opens the corresponding evidence page.
+For recognized example clues, the app separately checks the relevant intake
+facts before highlighting a match and keeps Snap's original score visible.
 `Inspect live request` shows the case labels, question count, measured
 latency and actual token use.
 
-In one live run, full-packet classification used 13,672 input tokens and
-1.17 seconds of Snap round-trip time. All five routes matched the fixture
-policy. Cover-only classification used 9,457 tokens in 0.72 seconds and put
-all five cases in Needs review. Four example queries used about 12,700
-input tokens and 0.72–0.86 seconds each. Every request returned zero output
-tokens. These are observed timings for this five-fax synthetic set.
+In one live run, all 50 priorities matched the source checks after a follow-up
+on two faxes. The two calls used 56,060 input tokens and took 2.29 seconds of
+combined API time. Cover pages alone put all 50 cases in Needs review.
+Four example searches took 0.79–0.87 seconds each, with zero output tokens.
 Reproduce the checks with `.venv/bin/python scripts/evaluate_triage.py`.
 
 ## Exactly what SubQ does per referral
@@ -62,6 +66,22 @@ result is advisory. The server separately reads county from the PDF and
 applies the rules. Reviewer sign-off is required to book. A signed critical
 flag goes to the clinician queue regardless of county. This is a fictional
 office scheduling rule, and outside-area cases get intake coordination.
+
+## Image attachments and the original PDF check
+
+The attachment strip shows the signed addendum scan, the locally installed
+BrainWeb phantom where available, and page previews of final lab reports.
+Click an image to open the underlying evidence. The BrainWeb slice is
+illustrative and stays in the viewer.
+
+Configure `META_API_KEY` (or `MODEL_API_KEY`) and `META_BASE_URL` locally to
+enable **Verify PDF with Muse**. That button sends the selected fictional fax
+as a native PDF to `muse-spark-1.3` through the Meta Model API. The app checks
+the returned priority, physical page number and quote against the fax text
+or its local OCR transcript. In a live R101 run, Muse returned
+`Routing instruction: CRITICAL` on page 2 in 4.78 seconds, and local OCR
+verified the quote. The result appears beside the selected fax for reviewer
+inspection. [Meta PDF file handling](https://dev.meta.ai/docs/file-handling)
 
 ## Asset provenance
 
@@ -85,8 +105,10 @@ office scheduling rule, and outside-area cases get intake coordination.
   *MRI Simulation-Based Evaluation of Image-Processing and Classification
   Methods*, IEEE TMI 18(11), 1999.
 
-The PDFs are bundled. To regenerate them and install the local MRI preview, use
-a Python environment with ReportLab, Pillow and pypdf.
+The PDFs are bundled. Generate the 45 additional fictional packets with
+`python3 scripts/build_scaled_referrals.py` using ReportLab, Pillow and
+Poppler. To regenerate the original five and install the local MRI preview,
+use a Python environment with ReportLab, Pillow and pypdf.
 
 ```bash
 curl -fsSL 'https://codeload.github.com/smart-on-fhir/sample-bulk-fhir-datasets/zip/54fa822575407ffc3255bc1d510749a28c29eb38' -o /tmp/referral-synthea.zip

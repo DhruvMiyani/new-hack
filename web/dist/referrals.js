@@ -17,6 +17,7 @@ const acceptanceActions = {
 };
 const labLabels = {result: 'Final lab result', order: 'Lab order only', missing: 'No lab document supplied'};
 const decisions = new Map();
+const museResults = new Map();
 let inbox;
 let current;
 let documentData;
@@ -24,6 +25,7 @@ let documentError;
 let activeTab = 'fax';
 let activeFaxPage = 1;
 let pending = false;
+let musePending = null;
 let triageMap;
 
 function append(parent, tag, text, className) {
@@ -47,6 +49,7 @@ async function api(action = '', data) {
 
 function renderQueue() {
   const list = el('queue');
+  const queueScroll = list.scrollTop;
   list.replaceChildren();
   const query = el('queue-search').value.trim().toLowerCase();
   const cases = inbox.cases.filter(item => {
@@ -66,7 +69,9 @@ function renderQueue() {
     append(sender, 'strong', fax.sender_name || item.clinic);
     append(sender, 'small', fax.sender_number || 'Sender number unavailable');
     const pageCount = fax.page_count ? ' · ' + fax.page_count + ' pg' : '';
-    append(sender, 'small', (fax.id || item.id) + pageCount);
+    const imageCount = item.attachments?.length || 0;
+    const images = imageCount ? ' · ' + imageCount + (imageCount === 1 ? ' image' : ' images') : '';
+    append(sender, 'small', (fax.id || item.id) + pageCount + images);
     const status = append(button, 'span');
     append(status, 'span', fax.received_at || item.received, 'queue-time');
     const priority = triageMap?.priority(item.id);
@@ -77,6 +82,7 @@ function renderQueue() {
       list.querySelector('[data-case="' + CSS.escape(item.id) + '"]')?.focus({preventScroll: true});
     });
   }
+  list.scrollTop = queueScroll;
   const done = inbox.cases.filter(item => item.review).length;
   el('progress').textContent = done === inbox.cases.length ? 'Inbox cleared' : done + ' of ' + inbox.cases.length + ' reviewed';
   el('progress-bar').max = inbox.cases.length;
@@ -150,6 +156,65 @@ function faxPageCount() {
   return current?.fax?.page_count || documentData?.pages.length || 1;
 }
 
+function setViewer(tab, page = activeFaxPage) {
+  activeTab = tab;
+  activeFaxPage = Math.max(1, Math.min(page, faxPageCount()));
+  el('document').scrollTop = 0;
+  renderDocument();
+}
+
+function renderAttachments() {
+  const attachments = current.attachments || [];
+  const strip = el('attachment-strip');
+  const jump = el('attachment-jump');
+  strip.hidden = attachments.length === 0;
+  jump.hidden = strip.hidden;
+  jump.textContent = 'Images (' + attachments.length + ') ↓';
+  jump.setAttribute('aria-label', 'Jump to image attachments for ' + current.id);
+  el('attachment-count').textContent = String(attachments.length);
+  const cards = el('attachment-cards');
+  cards.replaceChildren();
+  for (const attachment of attachments) {
+    const card = append(cards, 'button', undefined, 'attachment-card');
+    card.type = 'button';
+    card.dataset.viewer = attachment.type === 'lab' ? 'fax' : attachment.type;
+    if (attachment.type === 'lab') card.dataset.page = attachment.page;
+    card.setAttribute('aria-label', 'Open ' + attachment.label + ' for ' + current.id);
+    const preview = append(card, 'span', undefined, 'attachment-thumbnail ' + attachment.type);
+    const image = append(preview, 'img');
+    image.alt = '';
+    image.addEventListener('error', () => {
+      image.remove();
+      append(preview, 'span', 'No preview', 'missing-image');
+    }, {once: true});
+    image.src = attachment.url;
+    const copy = append(card, 'span');
+    append(copy, 'strong', attachment.label);
+    append(copy, 'small', attachment.detail);
+    card.addEventListener('click', () => {
+      setViewer(card.dataset.viewer, attachment.page);
+      el('document').scrollIntoView({block: 'nearest'});
+    });
+  }
+}
+
+function renderAttachmentImage(panel, type, alt) {
+  const attachment = (current.attachments || []).find(item => item.type === type);
+  if (!attachment) {
+    append(panel, 'p', 'This referral has no ' + (type === 'scan' ? 'scanned report image.' : 'MRI image.'));
+    return;
+  }
+  const figure = append(panel, 'figure');
+  const image = append(figure, 'img', undefined, type === 'mri' ? 'mri' : undefined);
+  image.alt = alt;
+  image.addEventListener('error', () => {
+    image.remove();
+    append(figure, 'p', 'Image unavailable. The original fax PDF is linked above.', 'small');
+  }, {once: true});
+  image.src = attachment.url;
+  append(figure, 'figcaption', attachment.label + ' · ' + attachment.detail);
+}
+
 function renderFaxPage(panel) {
   const page = activeFaxPage;
   const pageCount = faxPageCount();
@@ -167,12 +232,14 @@ function renderFaxPage(panel) {
     append(figure, 'p', 'Page image unavailable. Open the original PDF above or choose Extracted text.', 'small');
   }, {once: true});
   const caption = append(figure, 'figcaption', 'Page ' + page + ' · ');
-  if (page === 1) {
+  if (page === 1 && /^R10[1-5]$/.test(current.id)) {
     const source = append(caption, 'a', 'VA 10-10172 template');
     source.href = 'https://www.va.gov/forms/10-10172/';
     source.target = '_blank';
     source.rel = 'noopener';
     caption.append(' · synthetic entries');
+  } else if (page === 1) {
+    caption.append('Synthetic fax cover');
   } else {
     caption.append(page === 2 && pageCount === 3 ? 'Synthetic radiology report' : 'Synthetic laboratory attachment');
   }
@@ -182,17 +249,18 @@ function renderDocument() {
   const panel = el('document');
   panel.replaceChildren();
   for (const tab of tabs) tab.setAttribute('aria-pressed', String(tab.dataset.tab === activeTab));
+  for (const card of el('attachment-cards').querySelectorAll('button')) {
+    const selected = card.dataset.viewer === activeTab &&
+      (activeTab !== 'fax' || Number(card.dataset.page) === activeFaxPage);
+    card.setAttribute('aria-pressed', String(selected));
+  }
   el('fax-pager').hidden = activeTab !== 'fax';
   if (activeTab === 'fax') {
     renderFaxPage(panel);
     return;
   }
   if (activeTab === 'scan') {
-    const figure = append(panel, 'figure');
-    const image = append(figure, 'img');
-    image.src = '/referral-assets/R101-addendum.png';
-    image.alt = 'Fictional signed radiology addendum with a critical routing instruction';
-    append(figure, 'figcaption', 'Scanned signed addendum · PDF page 2');
+    renderAttachmentImage(panel, 'scan', 'Fictional signed radiology addendum with a critical routing instruction');
     if (documentData?.ocr) {
       const details = append(panel, 'details');
       append(details, 'summary', 'Local OCR transcript');
@@ -203,17 +271,7 @@ function renderDocument() {
     return;
   }
   if (activeTab === 'mri') {
-    if (inbox.mri_available) {
-      const figure = append(panel, 'figure');
-      const image = append(figure, 'img', undefined, 'mri');
-      image.src = '/referral-assets/brainweb-local.png';
-      image.alt = 'Axial slice from the BrainWeb simulated normal brain MRI';
-      append(figure, 'figcaption', 'BrainWeb simulated T1 MRI phantom · view only');
-    } else {
-      append(panel, 'p', 'The local MRI teaching slice has not been installed.');
-      const link = append(panel, 'a', 'View the BrainWeb simulated MRI source ↗');
-      link.href = 'https://www.mcgill.ca/bic/software/brainweb-mri-simulator';
-    }
+    renderAttachmentImage(panel, 'mri', 'Axial slice from the BrainWeb simulated normal brain MRI');
     return;
   }
   if (!documentData) {
@@ -225,10 +283,10 @@ function renderDocument() {
     details.open = index === 0;
     append(details, 'summary', 'PDF page ' + (index + 1));
     append(details, 'pre', page);
-    if (index === 1 && current.scanned) {
+    if (index === 1 && current.attachments?.some(attachment => attachment.type === 'scan')) {
       const button = append(details, 'button', 'Open scanned addendum');
       button.type = 'button';
-      button.addEventListener('click', () => { activeTab = 'scan'; renderDocument(); });
+      button.addEventListener('click', () => setViewer('scan'));
     }
   });
 }
@@ -247,6 +305,43 @@ function renderSnapTrace(card, summary) {
     questions: summary.questions || summary.question_names,
   };
   append(details, 'pre', JSON.stringify(inputs, null, 2));
+}
+
+function renderMuse() {
+  const button = el('muse-check');
+  const panel = el('muse-result');
+  panel.replaceChildren();
+  button.disabled = !inbox.muse_available || musePending !== null;
+  button.textContent = musePending === current.id ? 'Checking the PDF…' : 'Verify PDF with Muse';
+  if (!inbox.muse_available) {
+    append(panel, 'p', 'Muse credentials are unavailable for this workspace.');
+    return;
+  }
+  const result = museResults.get(current.id);
+  if (!result) return;
+  if (!result.available) {
+    append(panel, 'p', result.message || 'Muse did not return a PDF cross-check.');
+    return;
+  }
+  const status = result.verified
+    ? (result.quote ? 'Source quote verified' : 'Missing signed report verified')
+    : 'PDF check unverified';
+  append(panel, 'span', status, 'tag ' + (result.verified ? 'success' : 'neutral'));
+  if (result.priority) append(panel, 'p', 'Muse read: ' + (routes[result.priority] || result.priority));
+  if (result.quote) append(panel, 'blockquote', result.quote);
+  const metrics = [result.model];
+  if (Number.isFinite(result.elapsed_ms)) metrics.push((result.elapsed_ms / 1000).toFixed(2) + ' s');
+  if (Number.isFinite(result.input_tokens)) metrics.push(result.input_tokens.toLocaleString() + ' input tokens');
+  if (Number.isFinite(result.output_tokens)) metrics.push(result.output_tokens.toLocaleString() + ' output tokens');
+  append(panel, 'p', metrics.filter(Boolean).join(' · '), 'small');
+  if (result.verified && Number.isInteger(result.page) && result.page >= 1 && result.page <= faxPageCount()) {
+    const source = append(panel, 'button', 'Open verified page ' + result.page, 'button secondary');
+    source.type = 'button';
+    source.addEventListener('click', () => {
+      setViewer('fax', result.page);
+      el('document').scrollIntoView({block: 'nearest'});
+    });
+  }
 }
 
 function renderComparisons() {
@@ -327,21 +422,25 @@ async function selectCase(item) {
   el('case-title').textContent = item.fax?.sender_name || item.clinic;
   el('open-pdf').href = item.fax?.document_url || '/referral-assets/' + item.id + '.pdf';
   el('open-pdf').hidden = false;
-  tabs.find(tab => tab.dataset.tab === 'scan').hidden = !item.scanned;
+  for (const tab of tabs.filter(tab => ['scan', 'mri'].includes(tab.dataset.tab))) {
+    tab.hidden = !item.attachments?.some(attachment => attachment.type === tab.dataset.tab);
+  }
   el('review').reset();
   el('error').textContent = '';
   renderQueue();
   renderFaxMetadata();
+  renderAttachments();
   renderEligibility();
   el('document').scrollTop = 0;
   renderDocument();
   renderComparisons();
+  renderMuse();
   renderReview();
   try {
     const result = await api('/document', {id: item.id});
     if (current === item) {
       documentData = result;
-      renderDocument();
+      if (['scan', 'pages'].includes(activeTab)) renderDocument();
     }
   } catch (error) {
     if (current === item) {
@@ -359,11 +458,7 @@ function setBusy(value) {
 }
 
 for (const tab of tabs) {
-  tab.addEventListener('click', () => {
-    activeTab = tab.dataset.tab;
-    el('document').scrollTop = 0;
-    renderDocument();
-  });
+  tab.addEventListener('click', () => setViewer(tab.dataset.tab));
 }
 
 function moveFaxPage(offset) {
@@ -402,6 +497,22 @@ for (const button of controls) {
   });
 }
 
+el('muse-check').addEventListener('click', async () => {
+  if (!inbox?.muse_available || !current || musePending !== null) return;
+  const id = current.id;
+  musePending = id;
+  museResults.delete(id);
+  renderMuse();
+  try {
+    museResults.set(id, await api('/muse', {id}));
+  } catch (error) {
+    museResults.set(id, {available: false, message: error.message});
+  } finally {
+    musePending = null;
+    renderMuse();
+  }
+});
+
 el('review').addEventListener('submit', async event => {
   event.preventDefault();
   if (pending || !current) return;
@@ -425,11 +536,12 @@ el('review').addEventListener('submit', async event => {
 });
 
 el('reset').addEventListener('click', async () => {
-  if (pending) return;
+  if (pending || musePending !== null) return;
   setBusy(true);
   try {
     inbox = await api('/reset', {});
     decisions.clear();
+    museResults.clear();
     el('queue-search').value = '';
     renderRulesBook();
     await selectCase(inbox.cases[0]);
@@ -453,9 +565,9 @@ async function start() {
     onUpdate: renderQueue,
     openFax: (item, source) => {
       const page = source?.endsWith('-SCAN') ? 2 : Number(source?.match(/-P(\d+)$/)?.[1] || 1);
-      selectCase(item);
-      activeFaxPage = Math.min(page, faxPageCount());
-      renderDocument();
+      void selectCase(item);
+      const scan = source?.endsWith('-SCAN') && item.attachments?.some(attachment => attachment.type === 'scan');
+      setViewer(scan ? 'scan' : 'fax', page);
       el('fax-workspace').scrollIntoView({block: 'start'});
     },
   });

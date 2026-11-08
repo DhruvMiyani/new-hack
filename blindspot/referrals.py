@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import math
 import re
 import subprocess
@@ -19,6 +20,7 @@ CASES = {
     "R104": {"clinic": "Valley Clinic", "received": "09:12", "fax": "(650) 555-0104", "report": "text", "pages": 3},
     "R105": {"clinic": "Maple Clinic", "received": "09:19", "fax": "(510) 555-0105", "report": "missing", "pages": 2},
 }
+CASES.update(json.loads(Path(__file__).with_name("scaled_cases.json").read_text(encoding="utf-8")))
 LABELS = {
     "critical": "Critical — clinician escalation, no booking",
     "high": "High — priority appointment after reviewer approval",
@@ -98,7 +100,7 @@ def _extract(command, error):
     return result.stdout
 
 
-@lru_cache(maxsize=5)
+@lru_cache(maxsize=len(CASES))
 def pages(identifier):
     _case(identifier)
     source = _extract(
@@ -149,11 +151,43 @@ def _inbox_item(identifier, info, review):
         "id": identifier, "clinic": info["clinic"], "received": info["received"],
         "review": review, "scanned": info["report"] == "scan",
         "patient_county": decision["county"], "eligibility": decision,
+        "attachments": attachments(identifier, info),
         "fax": {"id": f"FX-{identifier}", "channel": "eFax", "sender_name": info["clinic"],
                 "sender_number": info["fax"], "received_at": f"{info['received']} PT",
                 "status": "Received", "page_count": info["pages"],
                 "document_url": f"/referral-assets/{identifier}.pdf"},
     }
+
+
+def _lab_document(text):
+    """Use the explicit fixture field rather than guessing from lab values."""
+    if re.search(r"Document type:\s*final laboratory result\b", text, re.I):
+        return "result"
+    if re.search(r"Document type:\s*laboratory order\b", text, re.I):
+        return "order"
+    return "missing"
+
+
+def attachments(identifier, info):
+    images = []
+    if info["report"] == "scan":
+        images.append({"type": "scan", "url": "/referral-assets/R101-addendum.png",
+                       "label": "Signed addendum", "detail": "Fax page 2 · image used by Snap", "page": 2})
+        if (ASSETS / "brainweb-local.png").is_file():
+            images.append({"type": "mri", "url": "/referral-assets/brainweb-local.png",
+                           "label": "Simulated MRI", "detail": "BrainWeb viewer attachment"})
+    try:
+        packet = pages(identifier)
+    except ValueError:
+        return images
+    for index, page in enumerate(packet, 1):
+        if _lab_document(page) == "result":
+            name = f"{identifier}-fax-{index}.png" if index > 1 else f"{identifier}-fax.png"
+            if (ASSETS / name).is_file():
+                images.append({"type": "lab", "url": f"/referral-assets/{name}",
+                               "label": "Final lab report", "detail": f"Fax page {index} · page image",
+                               "page": index})
+    return images
 
 
 @lru_cache(maxsize=1)

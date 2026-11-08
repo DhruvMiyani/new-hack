@@ -50,20 +50,28 @@ function createTriageMap({api, cases, openFax, onUpdate, modelAvailable}) {
       add(stats, 'strong', count + ' of ' + cases().length + ' match every clue');
     } else if (classification) {
       const rows = classification.rows;
-      const agree = rows.filter(row => row.route === row.verified_route && row.acceptance === row.verified_acceptance).length;
-      add(stats, 'strong', rows.length + ' classified · ' + agree + '/' + rows.length + ' agree with local checks');
+      const agree = rows.filter(row => row.agrees_with_local).length;
+      add(stats, 'strong', rows.length + ' classified · ' + agree + '/' + rows.length + ' pass source checks');
     } else {
       add(stats, 'span', modelAvailable ? 'Run a live classification to see the queue.' : 'Configure SubQ on the server to classify the inbox.');
     }
     if (!busy && !problem && lastRequest) {
       const r = lastRequest;
+      const calls = r.calls ?? 1;
+      const evidence = r.context === 'search_index'
+        ? r.pages + ' indexed pages'
+        : r.pages + ' pages · ' + r.images + ' ' + (r.images === 1 ? 'scan' : 'scans');
       const metrics = [
-        '1 Snap call · ' + r.questions + ' decisions',
-        r.pages + ' pages · ' + r.images + ' ' + (r.images === 1 ? 'scan' : 'scans'),
+        calls + (calls === 1 ? ' Snap call · ' : ' Snap calls · ') + r.questions + ' decisions',
+        evidence,
         r.input_tokens.toLocaleString() + ' input tokens',
         (r.elapsed_ms / 1000).toFixed(2) + ' s Snap · ' + (timing / 1000).toFixed(2) + ' s total',
       ];
       if (r.output_tokens !== null) metrics.splice(3, 0, r.output_tokens + ' output tokens');
+      if (r.verified_clues?.length) {
+        metrics.push(r.verified_clues.length === 1 ? '1 clue checked against source' :
+          r.verified_clues.length + ' clues checked against source');
+      }
       for (const metric of metrics) add(stats, 'span', metric, 'triage-metric');
     }
   }
@@ -97,21 +105,36 @@ function createTriageMap({api, cases, openFax, onUpdate, modelAvailable}) {
       const head = add(lane, 'div', undefined, 'triage-lane-head');
       add(head, 'h2', label);
       const rows = (classification?.rows || []).filter(row => row.route === route);
-      add(head, 'span', classification ? String(rows.length) : '–');
-      rows.sort((a, b) => (rowById.get(b.id)?.score || 0) - (rowById.get(a.id)?.score || 0));
+      const matched = rows.filter(row => rowById.get(row.id)?.matched).length;
+      const count = add(head, 'span', matches ? matched + ' / ' + rows.length : classification ? String(rows.length) : '–');
+      if (matches) count.setAttribute('aria-label', matched + ' matching out of ' + rows.length);
+      rows.sort((a, b) => {
+        const aMatch = rowById.get(a.id);
+        const bMatch = rowById.get(b.id);
+        return Number(Boolean(bMatch?.matched)) - Number(Boolean(aMatch?.matched)) ||
+          (bMatch?.score || 0) - (aMatch?.score || 0);
+      });
       if (!rows.length) add(lane, 'p', classification ? 'No referrals' : 'Awaiting results', 'triage-empty');
+      const cards = add(lane, 'div', undefined, 'triage-lane-cards');
+      cards.setAttribute('role', 'group');
+      cards.setAttribute('aria-label', label + ' referrals');
       for (const row of rows) {
         const item = records.get(row.id);
         if (!item) continue;
         const match = rowById.get(row.id);
-        const card = add(lane, 'button', undefined, 'triage-case');
+        const card = add(cards, 'button', undefined, 'triage-case');
         card.type = 'button';
         card.classList.toggle('match', Boolean(match?.matched));
         card.classList.toggle('nonmatch', Boolean(match && !match.matched));
         add(card, 'strong', item.clinic);
-        add(card, 'span', row.id + ' · ' + pageLabel(row.source));
-        if (row.route !== row.verified_route || row.acceptance !== row.verified_acceptance) {
+        const images = item.attachments?.length || 0;
+        const imageCount = images ? ' · ' + images + (images === 1 ? ' image' : ' images') : '';
+        add(card, 'span', row.id + ' · ' + pageLabel(row.source) + imageCount);
+        if (!row.agrees_with_local) {
           add(card, 'span', 'Disagrees with local checks');
+        }
+        if (match?.model_matched && match.verified_match === false) {
+          add(card, 'span', 'Query match blocked by source check');
         }
         add(card, 'span', match ? percent(match.score) + ' query match' :
           percent(row.probabilities[row.route]) + ' priority score', 'triage-score');
@@ -122,6 +145,7 @@ function createTriageMap({api, cases, openFax, onUpdate, modelAvailable}) {
         }
         card.addEventListener('click', () => openFax(item, match?.matched ? match.source : row.source));
       }
+      if (cards.scrollHeight > cards.clientHeight) cards.tabIndex = 0;
     }
   }
 

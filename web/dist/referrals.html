@@ -13,6 +13,7 @@
   <a class="brand" href="/referrals.html"><span class="brand-icon" aria-hidden="true">+</span> Referral Desk</a>
   <span class="app-location">Bayview Neurology <span class="header-separator">/</span> Intake</span>
   <nav aria-label="Demo navigation">
+    <a id="attachment-jump" href="#attachment-strip" hidden>Image attachments ↓</a>
     <a href="#fax-workspace">Fax worklist ↓</a>
     <span class="training-tag">SIMULATED WORKSPACE</span>
   </nav>
@@ -66,7 +67,7 @@
       <div class="toolbar-divider"></div>
       <div class="completion">
         <span id="progress" aria-live="polite">0 reviewed</span>
-        <progress id="progress-bar" max="5" value="0" aria-label="Referrals reviewed"></progress>
+        <progress id="progress-bar" max="1" value="0" aria-label="Referrals reviewed"></progress>
       </div>
       <button class="button secondary" id="reset" type="button">Reset demo</button>
     </div>
@@ -89,11 +90,18 @@
           <a class="button secondary" id="open-pdf" target="_blank" rel="noopener" hidden>Open PDF ↗</a>
         </div>
         <dl class="fax-meta" id="fax-meta" aria-label="Fax delivery details"></dl>
+        <section id="attachment-strip" class="attachment-strip" aria-labelledby="attachment-title" tabindex="-1" hidden>
+          <div class="attachment-heading">
+            <h3 id="attachment-title">Image attachments</h3>
+            <span id="attachment-count" class="count"></span>
+          </div>
+          <div class="attachment-cards" id="attachment-cards"></div>
+        </section>
         <div class="tabs" role="group" aria-label="Packet views">
           <button type="button" data-tab="fax" aria-pressed="true">Fax preview</button>
           <button type="button" data-tab="pages" aria-pressed="false">Extracted text</button>
           <button type="button" data-tab="scan" hidden aria-pressed="false">Scanned report</button>
-          <button type="button" data-tab="mri" aria-pressed="false">MRI attachment</button>
+          <button type="button" data-tab="mri" hidden aria-pressed="false">MRI attachment</button>
         </div>
         <div class="fax-pager" id="fax-pager" role="group" aria-label="Fax page controls" hidden>
           <button class="button secondary" id="fax-prev" type="button">‹ Previous page</button>
@@ -126,6 +134,14 @@
             <p>Snap proposes an urgency route and points to source evidence. The rules book checks whether this specialist can book the referral, and staff confirm the final action.</p>
             <p id="policy"></p>
           </details>
+        </div>
+      </section>
+      <section class="panel" aria-labelledby="muse-title">
+        <div class="panel-head"><h2 id="muse-title">Original PDF cross-check</h2><span class="tag neutral">MUSE</span></div>
+        <div class="panel-body">
+          <p class="small decision-caption">Send this fictional fax PDF to Muse and verify the returned quote against the source page.</p>
+          <button type="button" class="button secondary" id="muse-check" disabled>Verify PDF with Muse</button>
+          <div class="muse-result" id="muse-result" role="status" aria-live="polite"></div>
         </div>
       </section>
       <section class="panel review" aria-labelledby="review-title">

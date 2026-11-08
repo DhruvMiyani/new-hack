@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 
-from blindspot import referrals, triage
+from blindspot import muse, referrals, triage
 
 ROOT = Path(__file__).resolve().parent
 WEB = ROOT / "web" / "dist"
@@ -19,11 +19,16 @@ ACTIONS = {
     "/api/referrals/assess": referrals.assess,
     "/api/referrals/triage": triage.evaluate,
     "/api/referrals/review": referrals.review,
-    "/api/referrals/reset": lambda _data: referrals.reset(),
+    "/api/referrals/reset": lambda _data: _capabilities(referrals.reset()),
+    "/api/referrals/muse": muse.inspect,
 }
-MODEL_ACTIONS = {"/api/referrals/assess", "/api/referrals/triage"}
+MODEL_ACTIONS = {"/api/referrals/assess", "/api/referrals/triage", "/api/referrals/muse"}
 MODEL_LIMIT = threading.BoundedSemaphore(2)
 MAX_BODY = 8192
+
+
+def _capabilities(data):
+    return {**data, "muse_available": muse.available()}
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -51,7 +56,7 @@ class Handler(SimpleHTTPRequestHandler):
             return self.respond(403, {"error": "Local access only."})
         path = urlsplit(self.path).path
         if path == "/api/referrals":
-            return self.respond(200, referrals.inbox())
+            return self.respond(200, _capabilities(referrals.inbox()))
         if path.startswith("/api/"):
             return self.respond(404, {"error": "Unknown API route."})
         if path == "/":
@@ -88,7 +93,7 @@ class Handler(SimpleHTTPRequestHandler):
 
         uses_model = path in MODEL_ACTIONS
         if uses_model and not MODEL_LIMIT.acquire(blocking=False):
-            return self.respond(429, {"error": "Snap is reviewing two requests. Try again shortly."})
+            return self.respond(429, {"error": "Two model requests are running. Try again shortly."})
         try:
             result = action(data)
         except ValueError as exc:
