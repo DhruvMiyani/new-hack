@@ -8,9 +8,7 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
-from blindspot import improve, referrals
+from blindspot import improve, referrals, triage
 
 
 def _version(name="DEMO-9.0", policy="p", rules=None, parent="DEMO-1.0"):
@@ -35,15 +33,19 @@ def test_ground_truth_comes_from_fixtures_not_a_model():
     assert all(v in referrals.LABELS for v in t.values())
 
 
-def test_applied_restores_the_live_rulebook_even_on_error():
-    before_policy, before_rules = referrals.POLICY, referrals.RULES_BOOK
-    v = _version(policy="swapped")
-    with pytest.raises(RuntimeError):
-        with improve.applied(v):
-            assert referrals.POLICY == "swapped"
-            raise RuntimeError("boom")
-    assert referrals.POLICY is before_policy
-    assert referrals.RULES_BOOK is before_rules
+def test_score_sends_only_the_requested_split_and_uses_first_pass(monkeypatch):
+    version = improve.ablate(improve.baseline())
+    identifier = "R101"
+
+    def evaluate(data, **kwargs):
+        assert kwargs == {"identifiers": [identifier], "policy": version.policy,
+                          "routing_instructions": version.routing_instructions,
+                          "policy_version": version.version, "recheck": False}
+        assert referrals.POLICY != version.policy
+        return {"available": True, "request": {}, "rows": [{"id": identifier, "route": "low"}]}
+
+    monkeypatch.setattr(triage, "evaluate", evaluate)
+    assert improve.score(version, [identifier]).disagreements == {identifier: ("critical", "low")}
 
 
 def test_version_numbering_increments():
@@ -108,18 +110,22 @@ def test_proposer_cannot_widen_the_accepted_counties():
     reply = json.dumps({
         "notes": "widen the area",
         "policy": "revised policy",
-        "rules": [{"id": "AREA-01", "title": "t", "text": "revised"}],
+        "routing_instructions": "read signed report",
+        "accepted_counties": ["Anywhere"],
     })
 
     class _Muse:
         available = True
-        def complete(self, *a, **k):
+        def complete(self, system, user, **kwargs):
+            assert "R101" not in user
+            assert "expected high, predicted low: 1" in user
             return f"```json\n{reply}\n```"
 
-    candidate = improve.propose(current, {"R1": ("high", "low")}, _Muse())
+    candidate = improve.propose(current, {"R101": ("high", "low")}, _Muse())
     assert candidate is not None
-    assert candidate.rules_book["accepted_counties"] == current.rules_book["accepted_counties"]
+    assert candidate.rules_book == current.rules_book
     assert candidate.policy == "revised policy"          # wording did change
+    assert candidate.routing_instructions == "read signed report"
     assert candidate.parent == current.version
 
 
@@ -139,3 +145,12 @@ def test_propose_returns_none_when_there_is_nothing_to_learn_from():
             raise AssertionError("should not be called with no failures")
 
     assert improve.propose(improve.baseline(), {}, _Muse()) is None
+
+
+def test_experiment_promotion_cannot_activate_inbox_policy(tmp_path, monkeypatch):
+    monkeypatch.setattr(improve, "RULES_DIR", tmp_path)
+    candidate = improve.ablate(improve.baseline())
+    candidate.promoted = True
+    candidate.save()
+    assert improve.load_version(candidate.version).experiment
+    assert improve.latest_promoted().version == improve.baseline().version

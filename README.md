@@ -39,3 +39,26 @@ sources for the synthetic PDFs and optional MRI preview.
 ```
 
 The evaluation script makes live calls with only bundled fictional cases.
+
+## Routing policy repair experiment
+
+```bash
+.venv/bin/python selfimprove.py split
+.venv/bin/python selfimprove.py cycle --from-ablation
+.venv/bin/python selfimprove.py ledger
+```
+
+The experiment injects a cover-only routing fault while still supplying the
+full fax packets. Muse sees aggregate errors from 35 development referrals and
+proposes new wording for Snap's routing policy and priority question. Snap
+scores both versions on 15 frozen held-out referrals. The gate compares the
+first-pass decisions with the signed source and requires a gain with zero
+regressions. The scheduling rules stay fixed.
+
+The ledger records the policy text and held-out counts for every evaluated
+proposal. An experiment can earn promotion within its own trial. Run `cycle`
+without `--from-ablation` to test revisions to the active inbox policy.
+
+In the recorded live trial, the faulty policy scored 8/15 on the held-out
+split and the Muse revision scored 15/15 with zero regressions. The shipped
+policy also scored 15/15. [Saved decision](rules/referral/DEMO-1.0-cover-fault.4.json)

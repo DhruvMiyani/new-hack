@@ -1,7 +1,7 @@
 """Referral Desk self-improvement loop, gated on held-out referrals.
 
     python selfimprove.py split      show the frozen dev / held-out split
-    python selfimprove.py score      agreement of the active rulebook
+    python selfimprove.py score      first-pass agreement of the active routing policy
     python selfimprove.py cycle      one round: propose with Muse, gate on held-out
     python selfimprove.py ledger     every version and whether it was promoted
 
@@ -40,9 +40,11 @@ def cmd_score(args) -> int:
         return 2
     split = improve.load_split()
     version = improve.load_version(args.version) if args.version else improve.latest_promoted()
-    print(f"rulebook {version.version}" + (f"  ({version.notes})" if version.notes else ""))
+    print(f"routing policy {version.version}" + (f"  ({version.notes})" if version.notes else ""))
+    unavailable = False
     for name in ("dev", "held_out"):
         s = improve.score(version, split[name], scope=args.scope)
+        unavailable |= bool(s.error)
         print(f"  {name:9} {s.line()}")
         if s.disagreements:
             shown = list(s.disagreements.items())[:5]
@@ -50,7 +52,7 @@ def cmd_score(args) -> int:
                 print(f"      {identifier}: correct {want}, model {got}")
             if len(s.disagreements) > len(shown):
                 print(f"      ... {len(s.disagreements) - len(shown)} more")
-    return 0
+    return 2 if unavailable else 0
 
 
 def cmd_cycle(args) -> int:
@@ -59,12 +61,15 @@ def cmd_cycle(args) -> int:
         return 2
     muse = MuseProposer()
     if not muse.available:
-        print("Needs META_API_KEY to propose a revision. Set it in .env.")
+        print("Configure the Meta Model API credentials in your local .env.")
         return 2
 
     incumbent = None
     if args.from_ablation:
-        incumbent = improve.ablate(improve.latest_promoted(), args.rule)
+        if args.scope != "packet":
+            print("The cover-only fault experiment needs full packets.")
+            return 2
+        incumbent = improve.ablate(improve.latest_promoted())
         incumbent.save()
         print(f"starting from {incumbent.version}")
         print(f"  {incumbent.notes}\n")
@@ -85,10 +90,10 @@ def cmd_cycle(args) -> int:
 
     print()
     print(result["decision"].render())
-    if result["decision"].promoted:
-        print(f"\nwrote rules/referral/{result['decision'].candidate.version}.json")
-    else:
-        print("\nrulebook unchanged -- a proposal that cannot prove itself does not ship")
+    candidate = result["decision"].candidate
+    print(f"\nsaved {candidate.path().relative_to(ROOT)}")
+    if candidate.experiment:
+        print("This experiment is isolated from the active inbox policy.")
     print(f"\nmeta: {muse.line()}")
     return 0
 
@@ -97,7 +102,9 @@ def cmd_ledger(_args) -> int:
     versions = improve.all_versions()
     print(f"{'version':12} {'parent':12} {'state':10} notes")
     for v in versions:
-        state = "promoted" if v.promoted else "rejected"
+        state = "promoted" if v.promoted else "rejected" if v.gate else "trial"
+        if v.experiment:
+            state += " (experiment)"
         print(f"{v.version:12} {(v.parent or '-'):12} {state:10} {v.notes[:60]}")
     print("\nA rejected version stays on disk. The record of what did not work is")
     print("the part that makes the promoted ones believable.")
@@ -113,16 +120,15 @@ def main() -> int:
 
     sub.add_parser("split", help="show the frozen dev / held-out split").set_defaults(fn=cmd_split)
 
-    s = sub.add_parser("score", help="agreement of a rulebook against ground truth")
-    s.add_argument("--version", help="rulebook version (default: latest promoted)")
+    s = sub.add_parser("score", help="first-pass agreement against ground truth")
+    s.add_argument("--version", help="routing policy version (default: latest active promotion)")
     s.add_argument("--scope", default="packet", choices=["packet", "letter"])
     s.set_defaults(fn=cmd_score)
 
     c = sub.add_parser("cycle", help="one improvement round, gated on held-out")
     c.add_argument("--scope", default="packet", choices=["packet", "letter"])
     c.add_argument("--from-ablation", action="store_true",
-                   help="remove a rule first, so the loop has a real failure to repair")
-    c.add_argument("--rule", help="which rule id to ablate (default: the first)")
+                   help="try a deliberately faulty cover-only policy in an isolated experiment")
     c.set_defaults(fn=cmd_cycle)
 
     sub.add_parser("ledger", help="every version and whether it was promoted").set_defaults(fn=cmd_ledger)

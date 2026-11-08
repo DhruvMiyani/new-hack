@@ -10,14 +10,14 @@ from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 
-from blindspot import muse, referrals, triage
+from blindspot import improve, muse, referrals
 
 ROOT = Path(__file__).resolve().parent
 WEB = ROOT / "web" / "dist"
 ACTIONS = {
     "/api/referrals/document": referrals.document,
     "/api/referrals/assess": referrals.assess,
-    "/api/referrals/triage": triage.evaluate,
+    "/api/referrals/triage": improve.evaluate_inbox,
     "/api/referrals/review": referrals.review,
     "/api/referrals/reset": lambda _data: _capabilities(referrals.reset()),
     "/api/referrals/muse": muse.inspect,

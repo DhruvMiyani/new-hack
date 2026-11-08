@@ -10,6 +10,11 @@ from .providers import SubQSnap, choice, noul
 MAX_CLUES = 4
 MAX_CLUE_LENGTH = 120
 MATCH_THRESHOLD = 0.5
+ROUTING_INSTRUCTIONS = (
+    "Read this referral's explicit Routing instruction from its signed report. "
+    "Return its exact urgency, or needs_review when the signed instruction is absent. "
+    "A cover request, lab result, and county eligibility cannot establish urgency."
+)
 _QUERY_LINE = re.compile(
     r"county|priority|reason for referral|consultation|requested|routing instruction|report|"
     r"specimen|document type|order|sodium|potassium|glucose|creatinine|platelet|hemoglobin|"
@@ -92,16 +97,12 @@ def _query_excerpt(page):
     return "\n".join(line for index, line in enumerate(lines) if index < 3 or index in selected)[:850]
 
 
-def _classification_questions(identifier, evidence):
+def _classification_questions(identifier, evidence, routing_instructions=ROUTING_INSTRUCTIONS):
     image = f"{identifier}-SCAN"
     scope = f"Use only referrals.{identifier}.pages. "
     scope += f"The only allowed image is {image}. " if image in evidence else "This referral has no image. Ignore all images. "
     return {
-        f"route_{identifier}": choice(
-            scope + "Read this referral's explicit Routing instruction from its signed report. "
-            "Return its exact urgency, or needs_review when the signed instruction is absent. "
-            "A cover request, lab result, and county eligibility cannot establish urgency.", referrals.LABELS,
-        ),
+        f"route_{identifier}": choice(scope + routing_instructions, referrals.LABELS),
         f"source_{identifier}": choice(
             scope + "Identify the page or scan with this referral's signed routing instruction. "
             "Choose NONE when an instruction is absent.", evidence,
@@ -167,14 +168,14 @@ def _match(identifier, evidence, result, facts=None, clues=()):
     return row
 
 
-def _ask(snap, scope, clues, identifiers):
+def _ask(snap, scope, clues, identifiers, *, policy=None, routing_instructions=ROUTING_INSTRUCTIONS, policy_version=None):
     records, evidence, images, image_index = _packet(scope, bool(clues), identifiers)
-    question_factory = _query_questions if clues else _classification_questions
     questions = {}
     for identifier, labels in evidence.items():
-        questions.update(question_factory(identifier, labels))
+        questions.update(_query_questions(identifier, labels) if clues else
+                         _classification_questions(identifier, labels, routing_instructions))
     state = {
-        "policy": referrals.POLICY,
+        "policy": referrals.POLICY if policy is None else policy,
         "rules_book": referrals.RULES_BOOK,
         "evidence_instructions": referrals.EVIDENCE_INSTRUCTIONS
         + " Keep referrals isolated by ID. Image bindings identify which referral owns each image.",
@@ -201,6 +202,7 @@ def _ask(snap, scope, clues, identifiers):
         "image_bindings": image_index,
         "question_names": list(questions),
         "rules_version": referrals.RULES_BOOK["version"],
+        "routing_policy_version": policy_version or referrals.RULES_BOOK["version"],
     }
     if clues:
         request["verified_clues"] = [clue for clue in clues if clue.casefold() in _VERIFIED_CLUES]
@@ -212,22 +214,26 @@ def _ask(snap, scope, clues, identifiers):
     return result, rows, request
 
 
-def evaluate(data):
+def evaluate(data, *, identifiers=None, policy=None, routing_instructions=ROUTING_INSTRUCTIONS,
+             policy_version=None, recheck=True):
     """Classify or search the inbox and recheck suspicious classification results."""
     scope = data.get("scope", "packet")
     if scope not in ("letter", "packet"):
         raise ValueError("Choose cover pages or full packets.")
     clues = _clues(data.get("clues", []))
     snap = SubQSnap()
-    result, rows, request = _ask(snap, scope, clues, referrals.CASES)
+    ids = referrals.CASES if identifiers is None else identifiers
+    routing = {} if clues else {"policy": policy, "routing_instructions": routing_instructions,
+                                "policy_version": policy_version}
+    result, rows, request = _ask(snap, scope, clues, ids, **routing)
     if not result.ok:
         return {"available": False, "message": result.error or "Snap returned no decisions.", "request": request}
     if any(row is None for row in rows):
         return {"available": False, "message": "Snap returned an incomplete decision set. Try again.", "request": request}
-    if not clues:
+    if not clues and recheck:
         disagreements = [row["id"] for row in rows if not row["agrees_with_local"]]
         if disagreements:
-            _, checked, followup = _ask(snap, scope, [], disagreements)
+            _, checked, followup = _ask(snap, scope, [], disagreements, **routing)
             corrected = {row["id"]: row for row in checked if row is not None and row["agrees_with_local"]}
             for index, row in enumerate(rows):
                 if row["id"] in corrected:
