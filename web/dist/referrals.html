@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Fax Inbox — Referral Desk</title>
+  <title>Referral Triage Map — Referral Desk</title>
   <link rel="stylesheet" href="/referrals.css">
+  <script src="/triage-map.js" defer></script>
   <script src="/referrals.js" defer></script>
 </head>
 <body>
@@ -12,7 +13,7 @@
   <a class="brand" href="/referrals.html"><span class="brand-icon" aria-hidden="true">+</span> Referral Desk</a>
   <span class="app-location">Bayview Neurology <span class="header-separator">/</span> Intake</span>
   <nav aria-label="Demo navigation">
-    <a href="/">Security lab ↗</a>
+    <a href="#fax-workspace">Fax worklist ↓</a>
     <span class="training-tag">SIMULATED WORKSPACE</span>
   </nav>
 </header>
@@ -20,9 +21,44 @@
   <span>Documents</span><span aria-hidden="true">›</span><strong>Fax Inbox</strong>
 </div>
 <main>
-  <section class="inbox-toolbar" aria-labelledby="inbox-title">
+  <section class="triage-map" id="triage-map" aria-labelledby="triage-title">
+    <div class="triage-header">
+      <div>
+        <p class="triage-kicker">LIVE SUBQ SNAP · SYNTHETIC FAXES</p>
+        <h1 id="triage-title">Referral Triage Map</h1>
+        <p>Classify the inbox, then add a clue to see which faxes match.</p>
+      </div>
+      <div class="triage-controls">
+        <div class="triage-segment" role="group" aria-label="Inbox evidence scope">
+          <button type="button" data-triage-scope="letter" aria-pressed="false">Cover pages</button>
+          <button type="button" data-triage-scope="packet" aria-pressed="true">Full packets</button>
+        </div>
+        <button type="button" class="button primary" id="classify-inbox">Classify all</button>
+      </div>
+    </div>
+    <form class="triage-query" id="triage-query-form">
+      <label class="sr-only" for="triage-query">Add a search clue</label>
+      <input id="triage-query" maxlength="120" autocomplete="off" placeholder="Try ‘high priority outside the scheduling area’">
+      <button class="button primary" id="add-clue" type="submit">Add clue ↵</button>
+    </form>
+    <div class="triage-examples" aria-label="Example clues">
+      <span>Try</span>
+      <button type="button" data-clue="High priority outside the scheduling area">High + outside area</button>
+      <button type="button" data-clue="Lab order with no final result">Lab order only</button>
+      <button type="button" data-clue="Missing signed reviewer report">Missing signed report</button>
+      <button type="button" data-clue="Signed critical flag">Signed critical flag</button>
+    </div>
+    <div class="triage-clues" id="triage-clues" aria-label="Active clues" hidden></div>
+    <div id="triage-stats" class="triage-stats" role="status" aria-live="polite"></div>
+    <div id="triage-lanes" class="triage-lanes" aria-label="Priority classification"></div>
+    <details class="triage-trace" id="triage-trace" hidden>
+      <summary>Inspect live request</summary>
+      <pre id="triage-trace-json"></pre>
+    </details>
+  </section>
+  <section class="inbox-toolbar" id="fax-workspace" aria-labelledby="inbox-title">
     <div>
-      <h1 id="inbox-title">Fax Inbox</h1>
+      <h2 id="inbox-title">Fax Inbox</h2>
       <p>Inbound referrals · Specialist intake</p>
     </div>
     <div class="toolbar-actions">

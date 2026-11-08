@@ -1,9 +1,0 @@
-{
-  "sessions": [
-    {"user": "alice", "claimed_role": "member"},
-    {"user": "avery", "claimed_role": "admin"},
-    {"user": "former-employee", "claimed_role": "member"},
-    {"user": "demoted-admin", "claimed_role": "admin"},
-    {"user": "staging-contractor", "claimed_role": "member"}
-  ]
-}

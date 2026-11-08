@@ -24,6 +24,7 @@ let documentError;
 let activeTab = 'fax';
 let activeFaxPage = 1;
 let pending = false;
+let triageMap;
 
 function append(parent, tag, text, className) {
   const node = document.createElement(tag);
@@ -68,7 +69,9 @@ function renderQueue() {
     append(sender, 'small', (fax.id || item.id) + pageCount);
     const status = append(button, 'span');
     append(status, 'span', fax.received_at || item.received, 'queue-time');
-    append(status, 'span', item.review ? routes[item.review.route] : 'New', 'tag queue-state');
+    const priority = triageMap?.priority(item.id);
+    const label = item.review ? routes[item.review.route] : priority ? 'Snap · ' + routes[priority] : 'New';
+    append(status, 'span', label, 'tag queue-state');
     button.addEventListener('click', () => {
       selectCase(item);
       list.querySelector('[data-case="' + CSS.escape(item.id) + '"]')?.focus({preventScroll: true});
@@ -430,6 +433,7 @@ el('reset').addEventListener('click', async () => {
     el('queue-search').value = '';
     renderRulesBook();
     await selectCase(inbox.cases[0]);
+    void triageMap?.reset();
   } catch (error) {
     el('error').textContent = error.message;
   } finally {
@@ -444,6 +448,19 @@ async function start() {
   el('live').textContent = inbox.model_available ? 'LIVE AVAILABLE' : 'MANUAL REVIEW';
   el('policy').textContent = inbox.policy;
   renderRulesBook();
-  await selectCase(inbox.cases[0]);
+  triageMap = createTriageMap({
+    api, cases: () => inbox.cases, modelAvailable: inbox.model_available,
+    onUpdate: renderQueue,
+    openFax: (item, source) => {
+      const page = source?.endsWith('-SCAN') ? 2 : Number(source?.match(/-P(\d+)$/)?.[1] || 1);
+      selectCase(item);
+      activeFaxPage = Math.min(page, faxPageCount());
+      renderDocument();
+      el('fax-workspace').scrollIntoView({block: 'start'});
+    },
+  });
+  const selected = selectCase(inbox.cases[0]);
+  if (inbox.model_available) void triageMap.classify();
+  await selected;
 }
 start().catch(error => { el('error').textContent = error.message; });

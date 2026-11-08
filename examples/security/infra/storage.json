@@ -1,6 +1,0 @@
-{
-  "buckets": [
-    {"id": "production-backups", "environment": "production", "public_read": false, "read_roles": ["member", "admin"], "credential_roles": ["admin"]},
-    {"id": "staging-backups", "environment": "staging", "public_read": false, "read_roles": ["member", "admin"], "credential_roles": ["admin"]}
-  ]
-}

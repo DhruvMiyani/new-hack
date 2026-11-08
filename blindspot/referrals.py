@@ -188,6 +188,19 @@ def _distribution(answer, options):
     return dict(values)
 
 
+@lru_cache(maxsize=1)
+def _signed_scan():
+    image = ASSETS / "R101-addendum.png"
+    return {"mediaType": "image/png", "base64": base64.b64encode(image.read_bytes()).decode()}
+
+
+LAB_OPTIONS = {
+    "result": "A final laboratory result is supplied",
+    "order": "A lab order is supplied, with no final result",
+    "missing": "No lab document is supplied",
+}
+
+
 def assess(data):
     identifier = data.get("id")
     info = _case(identifier)
@@ -199,17 +212,13 @@ def assess(data):
     evidence = {f"P{i}": f"Page {i} of the attached PDF" for i in range(1, len(chosen) + 1)}
     images = None
     if scope == "packet" and info["report"] == "scan":
-        image = ASSETS / "R101-addendum.png"
-        images = [{"mediaType": "image/png", "base64": base64.b64encode(image.read_bytes()).decode()}]
+        images = [_signed_scan()]
         evidence["SCAN"] = "Signed radiology addendum image associated with PDF page 2"
     evidence["NONE"] = "No supplied source establishes a signed routing instruction"
-    lab_options = {"result": "A final laboratory result is supplied",
-                   "order": "A lab order is supplied, with no final result",
-                   "missing": "No lab document is supplied"}
     questions = {
         "route": choice("Select the route supported by the fictional clinic protocol.", LABELS),
         "source": choice("Which labelled source contains the decisive signed routing instruction? Use NONE if absent.", evidence),
-        "lab": choice("Distinguish a laboratory order from a final laboratory result in the supplied evidence.", lab_options),
+        "lab": choice("Distinguish a laboratory order from a final laboratory result in the supplied evidence.", LAB_OPTIONS),
         "complete": noul("Is a signed routing instruction for this case actually readable in the provided sources?",
                          "A signed instruction is supplied and legible", "It is absent or unclear"),
         "acceptance": choice(
@@ -239,7 +248,7 @@ def assess(data):
     acceptance = result.get("acceptance")
     acceptance_scores = _distribution(acceptance, ELIGIBILITY_LABELS)
     if not (result.ok and distribution and _distribution(source, evidence)
-            and _distribution(lab, lab_options) and complete and complete.kind == "noul"
+            and _distribution(lab, LAB_OPTIONS) and complete and complete.kind == "noul"
             and type(complete.value) in (int, float) and math.isfinite(complete.value)
             and 0 <= complete.value <= 1):
         return {"available": False, "message": "Live Snap decision unavailable. Review the source packet manually.",
@@ -260,7 +269,7 @@ def _verified_route(identifier):
         return "needs_review"
     try:
         text = scanned_text() if info["report"] == "scan" else pages(identifier)[1]
-    except ValueError:
+    except (IndexError, ValueError):
         return "needs_review"
     match = re.search(r"Routing instruction:\s*(CRITICAL|HIGH|MEDIUM|LOW)\b", text, re.I)
     return match.group(1).lower() if match and "status: signed" in text.lower() else "needs_review"

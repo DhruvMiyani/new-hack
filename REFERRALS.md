@@ -22,7 +22,30 @@ inform the workflow. See [design notes](docs/referrals/DESIGN.md).
 3. **Valley Clinic (R104).** San Mateo County is eligible. Confirm Low to
    book a routine slot in the simulated calendar.
 
-## Exactly what SubQ does
+## Inbox-wide live decisions
+
+The default view classifies five referrals in one request with 20 typed
+`choice` questions: urgency, supporting source, lab document type and
+administrative eligibility for each referral. The full request contains 14
+labelled PDF pages and one scanned report image bound to its own referral.
+The app compares priority and eligibility with separate local checks.
+
+Each clue change sends one request with 10 questions: one `noul` match score
+and one source `choice` per referral. Adding a second clue requires both clues
+to match. The query highlights the existing cards without changing their
+priority. Clicking a result opens the corresponding evidence page.
+`Inspect live request` shows the case labels, question count, measured
+latency and actual token use.
+
+In one live run, full-packet classification used 13,672 input tokens and
+1.17 seconds of Snap round-trip time. All five routes matched the fixture
+policy. Cover-only classification used 9,457 tokens in 0.72 seconds and put
+all five cases in Needs review. Four example queries used about 12,700
+input tokens and 0.72–0.86 seconds each. Every request returned zero output
+tokens. These are observed timings for this five-fax synthetic set.
+Reproduce the checks with `.venv/bin/python scripts/evaluate_triage.py`.
+
+## Exactly what SubQ does per referral
 
 The server uses `subq-snap-1.1` by default through `POST /v1/systemone`.
 Poppler extracts the PDF into labelled pages. The model receives those pages,

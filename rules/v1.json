@@ -1,7 +1,0 @@
-{
-  "version": "v1",
-  "parent": null,
-  "enabled": ["CG001", "CG002", "CG005", "CG006", "CG007", "CG008", "CG010"],
-  "notes": "Initial hand-written ruleset shipped with the agent.",
-  "promoted": true
-}

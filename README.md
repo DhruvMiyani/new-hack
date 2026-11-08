@@ -1,333 +1,40 @@
-# Blindspot
+# Referral Desk
 
-### Stop the Leak — an interactive SubQ mission
+A local, interactive eFax referral demo using SubQ Snap. Five fictional packets
+exercise signed priority, scanned evidence, missing reports and a sample
+specialist's scheduling area. The demo stores reviewer dispositions in memory.
 
-[Play on localhost](http://localhost:8765) · [Mission guide](MISSION.md) · [Original workbench](http://localhost:8765/workbench.html)
+## Run locally
 
-Investigate a fictional document-preview change that exposes private production
-backups. Explore the cloud map, predict the exposure, ask SubQ Snap to select
-evidence and rank hypotheses, then run independent access checks. Choose a
-prepared repair and prove private data stays private **while legitimate access
-still works**. A deny-everything repair loses.
-
-SubQ Snap is the only AI model in this mission. Its probabilities are advisory;
-the frozen local contract determines the result. No GCP account is needed and
-no cloud permissions are changed. The scenario and repair options are authored
-fixtures, not presented as AI-generated code. Start with
-`.venv/bin/python serve.py`, then open http://localhost:8765.
-
-**[Repository lab](http://localhost:8765/workbench.html#repository).** Connect a public GitHub
-repo or local Git snapshot, send full eligible source to SubQ, and draft a Meta
-patch from its selected context. An owned 56-file migration tests the result with
-independent checks: one live run passed **14/14 with SubQ context versus 4/14 with
-matched-size keyword context**. See [setup, evidence, and limits](CONTEXT.md).
-
-![Blindspot security workbench](docs/workbench.jpg)
-
-Inspect cloud-exposure and permission changes, reproduce the failed access
-boundary, and verify a repair against the same frozen checks.
-Run `.venv/bin/python serve.py` for fresh execution at http://localhost:8765,
-optional Meta/SubQ screenshot reasoning, and read-only GCP inspection.
-
----
-
-**When you ask a coding agent to write code *and its own tests*, how much safety does that actually buy? We measured it.**
-
-```
-3 tasks | 27 proven defects, each with a witnessed input
-  caught by the implementer's own tests   26%
-  caught by independent spec-only tests   74%
-  blind-spot recovery                     13/20 = 65%
-```
-
-AIE Code Summit 2026 — problem statement: **Trust but Verify**.
-
-**Open the visual workbench:** `.venv/bin/python serve.py`, then visit
-http://localhost:8765. Inspect a security change, reproduce its access failure,
-and verify a repair against the same independent checks. Includes a read-only
-GCP connector and optional model-mode screenshot input.
-See [workbench setup and scope](WORKBENCH.md).
-
-**New security workflow:** reproduce public-storage exposure, administrator
-escalation, and staging-to-production access; propose a repair and rerun frozen
-independent checks. Start with
-`.venv/bin/python verify.py security --offline --repair`.
-See [the security workflow](SECURITY.md) for Meta/SubQ mode and ASI:One cards.
-This is a local security lab, not a live cloud assessment.
-
-> *"How can a verifier write its own tests without sharing the implementer's blind spots, and stay independent, reproducible and hard to game?"*
-
-That question has an empirical answer, so this project answers it with a number measured from executed code rather than with a design claim.
-
----
-
-## Provenance — what was built during the hackathon
-
-The hackathon began **10:45 PT on 7 Nov 2026**. Being precise about this because the rules require it:
-
-| | |
-|---|---|
-| **Built today (hackathon work)** | `blindspot/` — defect injection, witness-based equivalence testing, the information wall, the measurement, the six experiments, both sponsor integrations · `verify.py` · `tests/test_blindspot.py` · `HACKATHON.md` · this README |
-| **Built 6 Nov, before the start** | `codegate/` — a reproduce-before-you-block review engine · `prover_agent.py` · the uAgents/ASI:One chat agent · `tests/test_codegate.py` |
-
-The first commit in this repository is that pre-hackathon code, unmodified, labelled as such:
+Install Poppler and Tesseract, then start the Python server. On macOS the system
+tools are available with `brew install poppler tesseract`.
 
 ```bash
-git log --oneline | tail -1     # eea395e Pre-hackathon baseline (authored 2026-11-06...)
-git diff --stat eea395e HEAD    # exactly what was built during the event
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python serve.py --port 8765
 ```
 
----
+Open [Referral Desk](http://localhost:8765/). Live Snap uses your locally
+configured `SUBQ_API_KEY` and `SUBQ_BASE_URL`, with optional `SUBQ_MODEL`.
+Set them in an ignored local `.env` or in the server's environment. The browser
+receives decision results and request metadata.
 
-## The idea
+1. **Classify all.** Watch five referrals enter priority lanes from one Snap
+   request. Switch to **Cover pages** to see what the model can decide without
+   the signed reports.
+2. **Add a clue.** Type a query or use a suggested clue. One request scores
+   every referral against all active clues. Blue cards have supporting evidence.
+3. **Open a fax.** A card jumps to the page that supports the result. The
+   independent clinic rules and reviewer sign-off govern the simulated outcome.
 
-The standard workflow is: model writes the code, then model writes tests for the code. The problem is that the tests are authored by something that has already read the implementation — so they inherit whatever the implementation assumed. A test suite written against code you just wrote tends to confirm what you meant, not discover what you missed.
-
-Blindspot tests that claim with a control group:
-
-```
-implementer    sees the spec.                      Writes the code.
-self-tester    sees the spec AND the code.         ← what "write tests for this" gives you
-independent    sees the spec and signature ONLY.   ← cannot inherit an assumption it never saw
-adjudicator    sees everything, writes nothing.    ← cannot leak an assumption into a test
-```
-
-Then it injects defects with known ground truth and asks which suite catches them.
-
----
-
-## Why the number is hard to game
-
-Three failure modes would make a measurement like this worthless. Each is closed in code, and each has a test.
-
-**1. A suite could fail on everything.** `assert False` in every test "kills" every mutant. So every suite is first run against the *correct* implementation, and one that fails there is **disqualified, not credited** — it is excluded from scoring entirely. (`test_suite_that_false_alarms_is_disqualified_not_credited`)
-
-**2. A mutant might not be a bug.** The known hole in mutation testing is *equivalent mutants* — changes that alter the text but not the behaviour. Counting those as "missed defects" slanders a suite that was fine. So nothing counts as a defect until we hold a **witness**: a concrete input where the original and the mutant provably disagree, with both outputs recorded.
-
-```
-offbyone line 2: integer literal 0 becomes 1
-  witness: f(1, [0])  ->  original ok:[0]  |  mutant ok:[]
-```
-
-On `page_range` this mattered enormously: **18 mutants reduced to 5 real defects and 13 equivalents.** Without this step the kill rates are simply wrong. (`test_equivalent_mutant_is_not_counted_as_a_defect`)
-
-**3. The adjudicator could smuggle in an assumption.** SubQ Snap was chosen partly *because* it cannot generate text — `output_tokens` is always 0. It answers structured questions and nothing else, so it structurally cannot author a test that encodes implementation knowledge.
-
----
-
-## Quickstart
-
-Python 3.10+ (set up here on 3.12).
+See [the demo guide](REFERRALS.md) for the request schema, measured run and
+sources for the synthetic PDFs and optional MRI preview.
 
 ```bash
-uv venv --python 3.12 .venv && VIRTUAL_ENV=.venv uv pip install -r requirements.txt
-
-.venv/bin/python verify.py run --offline      # the core result, no API calls
-.venv/bin/python verify.py status             # which providers are configured
-.venv/bin/python -m pytest tests/ -q
+.venv/bin/python -m pip install pytest
+.venv/bin/python -m pytest -q
+.venv/bin/python scripts/evaluate_triage.py
 ```
 
-For optional live integrations, configure the corresponding API key and base URL
-in your local `.env` or shell environment. Model integrations use
-`SUBQ_API_KEY` / `SUBQ_BASE_URL`, `META_API_KEY` / `META_BASE_URL`, or
-`ASI_ONE_API_KEY` / `ASI_ONE_BASE_URL`. GitHub API requests use
-`GITHUB_API_BASE_URL`. GCP canary reads use `GCP_STORAGE_BASE_URL`.
-
-### The six experiments
-
-Every one is scored against ground truth, because each defect is proven real by
-a **witness** — a concrete input where the original and the mutant provably differ.
-
-| command | what it measures | needs |
-|---|---|---|
-| `run` | self-written vs independent tests — the core result | nothing |
-| `matrix` | information independence vs *model* independence, with error bars | Meta |
-| `calibrate` | Decision Score `(accuracy − Brier) × 100`, plus self-consistency | SubQ |
-| `localize` | which line holds the defect, confidence-gated over 255 options | SubQ |
-| `queue` | merge-queue triage against FIFO and random | SubQ |
-| `haystack` | one known bug hidden in up to 384K tokens of real code | SubQ |
-| `run --cloud` | cloud exposure: does the suite notice a widened permission? | nothing |
-
-```bash
-.venv/bin/python verify.py matrix --models muse-spark-1.3,muse-wonder-1.0 --samples 3
-.venv/bin/python verify.py calibrate --symmetry
-.venv/bin/python verify.py localize --repo-scale --multimodal
-.venv/bin/python verify.py queue --curate --multimodal-every 3
-.venv/bin/python verify.py haystack --sizes 10000,50000,150000,350000
-.venv/bin/python verify.py run --cloud --offline
-```
-
-### A second domain: cloud exposure
-
-Security groups, bucket policies and IAM roles, held to the same evidence bar —
-a permission change counts only when we can name an access that was **denied
-before and allowed after**. The witness comes from evaluating the policy, so no
-cloud account is involved.
-
-```
-widen_cidr: CIDR 10.1.0.0/16 widened to 0.0.0.0/0
-  witness: EXPOSURE  |  NEWLY PERMITTED: 0.0.0.0/0/tcp/5432
-  caught by: test_database_not_open_to_the_internet
-```
-
-**Here the result flips, and that is the finding.** Pooled over 24 proven
-permission changes the independent suite scores *worse* (54% vs 71%). Splitting
-by what the change did explains it:
-
-| change class | n | self-written | independent |
-|---|---|---|---|
-| **EXPOSURE** — access newly granted | 16 | 56% | **81%** |
-| **REGRESSION** — access only removed | 8 | **100%** | **0%** |
-
-A suite written from a security requirement is a list of prohibitions: it
-dominates on access that gets opened and is structurally blind to access that
-gets removed. For configuration you need both kinds. An earlier test asserted a
-blanket win for independence; the data did not support it, so the test changed,
-not the corpus.
-
-**The measurement never depends on a model being reachable.** The numbers come from executed code, so `--offline` produces the same headline result — which also means conference WiFi cannot break the demo.
-
----
-
-## What one run looks like
-
-```
-TASK  allocate    ->  BLOCK
-
-how this ran
-  [offline] implement          using the known-correct reference
-  [offline] author tests       self-tests: offline stand-in
-  [local]   validate suites    2/2 pass cleanly on correct code
-  [local]   inject defects     5 single-site mutants
-  [local]   prove defects real 5 proven by witness, 0 equivalent, 0 undecided
-  [local]   measure            self kills 0%, independent kills 60%
-
-information wall
-  implementer-self       valid   saw the implementation
-  verifier-independent   valid   spec + signature only
-
-5 proven defect(s) -- each with a witnessed input, not merely a pattern match
-  self-written tests    ........................     0%  (0/5 caught)
-  independent tests     ##############..........    60%  (3/5 caught)
-
-defects ONLY the independent suite caught
-  - comparison at line 7: <= becomes < (drops the boundary case)
-      witness : f(1, [1])  ->  original ok:[1]  |  mutant ok:[]
-      caught by: test_budget_consumed_exactly, test_request_exactly_equal_to_budget_is_granted
-
-real defects BOTH suites missed (2) -- a shared blind spot
-  - dropguard line 2: removed the guard `if budget <= 0` and its early exit
-      witness: f(0, [0])  ->  original ok:[]  |  mutant ok:[0]
-```
-
-That last block matters: **independence is an improvement, not a cure.** Reporting the shared blind spots is part of the result.
-
----
-
-## How the sponsors are used
-
-Each product does the job it is uniquely suited to. Remove any one and the project changes shape.
-
-**Meta Model API** (`api.meta.ai/v1`, OpenAI-compatible) — the only component that generates, so it plays all three authoring roles: implementation, self-written tests, and independent spec-only tests. It is the *subject* of the experiment, not a chat wrapper around it.
-
-`verify.py matrix` uses what the API offers beyond chat — four authoring models (`muse-spark-1.1/1.2/1.3`, `muse-wonder-1.0`), the Meta-specific `reasoningEffort`, and per-sample seeds — to separate two mechanisms that are normally conflated:
-
-- **information effect** — same model, implementation withheld
-- **model effect** — same information, a *different model from the implementer*
-
-The implementer model is named explicitly, because "a different model" is meaningless otherwise. The proven-defect set is computed once per task and reused across every cell, so cells differ only in the axis under test. Cost is reported per run from published rates (~$0.005 per suite on spark-1.3).
-
-**Subquadratic — SubQ Snap 1.1** (`api.subq.ai/v1/systemone`, Decisions API) — the adjudicator. Not a chat model: it answers typed questions (`noul` / `choice` / `score`) with probabilities and confidence over up to 384K tokens, and emits no text at all.
-
-- *is this suite derived from the spec, or does it only make sense if you read the implementation?*
-- *does this reproduced divergence violate the spec, and how severely?*
-- *which file in this repo most needs independent verification?* (384K context, whole-repo file selection)
-
-Its own docs name "checking whether a test or result meets specified criteria" as a use case, which is exactly this job. Input-only billing makes whole-repo reads cheap.
-
-Subquadratic is #1 on the [Artificial Analysis Decision Index](https://artificialanalysis.ai/evaluations/artificial-analysis-decision-index), which scores `accuracy − Brier` and aggregates six evaluations — document extraction, workplace judgments, tool calling, hallucination, multiple-choice reasoning, and symmetry. **None of the six is software verification.** So `verify.py calibrate` computes the same formula on that missing domain, against defects we can prove are real, and reports whatever comes out — including a bad result, with a base-rate baseline a constant predictor must lose to.
-
-The other three SubQ experiments each target a capability they advertise:
-
-- **`localize`** — `choice` over 255 candidate lines (their Clue Map weighs 241 countries), with the confidence-gating curve their Sudoku demo implies: accuracy at each threshold against how often it is willing to answer at all.
-- **`queue`** — their support-triage showcase, on a merge queue. Same shape as their "7 min vs 12 min", but scored: *verifications performed before the first real defect*, against FIFO and a 20-shuffle random baseline. An ordering worse than doing nothing prints `SLOWER`.
-- **`haystack`** — their Moby-Dick demo for code. One proven defect buried in real Python, verified to assemble at **350K tokens (91% of the window)**, swept across context size *and* needle depth to test the lost-in-the-middle failure mode. A trial is refused unless the needle survives into the prompt.
-
-**Fetch.ai / ASI:One** — the workflow runs inside a conversation over the Agent Chat Protocol. Send `blindspot` to the agent and the measurement runs and reports with interactive cards (review card carrying the merge decision, carousel of findings, detail cards with evidence).
-
-```bash
-.venv/bin/python agent.py       # then open the printed Agent Inspector link
-```
-
-Without a key, every integration degrades to a stated fallback rather than a silent guess — `verify.py status` tells you exactly what is configured.
-
----
-
-## How it works
-
-```
-spec ──> Meta: implementation ──┐
-                                ├──> self-tests        (saw the code)
-spec + signature only ──────────┴──> independent tests (did not)
-                 │
-reference impl ──┴──> mutate.py      6 AST operators -> single-site defects
-                      equivalence.py differential test -> witness or discard
-                      runner.py      isolated child process, per-test outcomes
-                      measure.py     validate on correct code, then score
-                      roles.py       SubQ adjudicates independence + severity
-```
-
-| module | job |
-|---|---|
-| `mutate.py` | 6 operators: comparison, boolean, arithmetic, off-by-one, drop-guard, swap-args |
-| `equivalence.py` | type-aware input synthesis; proves a mutant real by witness or excludes it |
-| `runner.py` | executes suites with `-I`, scrubbed env, rlimits, wall-clock kill, network off |
-| `measure.py` | baseline validation, kill rates, recovery rate, kill-set overlap, per-operator breakdown |
-| `roles.py` | the information wall and all prompts; SubQ question schemas |
-| `providers.py` | Meta chat client + SubQ Decisions client, both degrading explicitly |
-| `pipeline.py` | the end-to-end run and the pooled aggregate |
-| `matrix.py` | the model × information × reasoning grid, with per-cell spread |
-| `calibration.py` | Decision Score, calibration buckets, symmetry |
-| `localize.py` | confidence-gated line localisation, repo-scale option sets |
-| `queue_triage.py` | merge-queue ranking against a written policy |
-| `haystack.py` | 384K-token needle assembly with a survival guard |
-| `screenshot.py` | renders context as a PNG for the multimodal comparison |
-| `cloud.py` | cloud tasks, 4 config mutation operators, exposure/regression split |
-
----
-
-## Honest limitations
-
-- **Three tasks, 27 proven defects.** Enough to demonstrate the effect, too few to size it precisely. The pooled number is a finding, not a benchmark.
-- **The offline stand-in suites are mine.** With no Meta key, the "self-written" and "independent" suites are hand-written in the style each author produces. I wrote them before measuring, but they are not model output — the honest version of the headline claim requires a live run with a Meta key, and the report always states which mode produced it.
-- **Equivalence detection is sound but not complete.** No distinguishing input within the budget means *likely* equivalent, not provably so. A mutant could need an input the synthesiser never tries.
-- **Input synthesis is heuristic**, driven by type annotations and parameter names. Unannotated code with unusual parameter names gets a weaker input space.
-- **The cloud domain models policy evaluation in Python**, not real Terraform or
-  live cloud state. The evaluator is deterministic and the witnesses are real,
-  but a production version would parse HCL and reconcile against the actual
-  account.
-- **Python only**, single-function tasks. The repo-scale SubQ path is implemented (`pick_risk_surface`) but the measurement itself has not been run across a multi-file repository.
-- **The mutants stand in for AI-generated defects.** They are realistic and have ground truth, which real AI defects lack — but they are injected, not naturally occurring.
-- **Sandboxing is defence in depth, not a jail.** Child process isolation, rlimits and no network stop accidents; untrusted third-party code belongs in a container.
-
----
-
-## Repository layout
-
-```
-verify.py             the measurement CLI  <- start here
-blindspot/            hackathon work (see Provenance)
-  mutate.py           defect injection
-  equivalence.py      witness-based real-defect proof
-  runner.py           isolated suite execution
-  measure.py          scoring and the anti-cheat rules
-  roles.py            information wall, prompts, SubQ questions
-  providers.py        Meta + SubQ clients
-  pipeline.py         orchestration
-  tasks.py            3 tasks with specs, references, offline stand-ins
-  report.py           terminal + markdown rendering
-HACKATHON.md          event context, judging-criteria self-assessment, demo script
-agent.py              ASI:One agent (pre-existing; `blindspot` command added today)
-codegate/             pre-hackathon review engine
-tests/                174 tests
-```
+The evaluation script makes live calls with only bundled fictional cases.

@@ -1,6 +1,0 @@
-{
-  "check_active": true,
-  "role_source": "directory",
-  "allow_self_role_change": false,
-  "enforce_environment": true
-}
