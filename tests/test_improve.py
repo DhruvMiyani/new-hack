@@ -45,7 +45,21 @@ def test_score_sends_only_the_requested_split_and_uses_first_pass(monkeypatch):
         return {"available": True, "request": {}, "rows": [{"id": identifier, "route": "low"}]}
 
     monkeypatch.setattr(triage, "evaluate", evaluate)
-    assert improve.score(version, [identifier]).disagreements == {identifier: ("critical", "low")}
+    result = improve.score(version, [identifier])
+    assert result.disagreements == {identifier: ("critical", "low")}
+    assert result.critical_misses == 1
+
+
+def test_reward_requires_citation_even_when_priority_is_correct(monkeypatch):
+    monkeypatch.setattr(triage, "evaluate", lambda *args, **kwargs: {
+        "available": True, "request": {}, "rows": [
+            {"id": "R101", "route": "critical", "agrees_with_local": False},
+            {"id": "R102", "route": "high", "agrees_with_local": True},
+        ],
+    })
+    result = improve.score(improve.baseline(), ["R101", "R102"])
+    assert (result.agreed, result.total, result.critical_misses) == (1, 2, 0)
+    assert result.disagreements == {"R101": ("critical", "critical with wrong citation")}
 
 
 def test_version_numbering_increments():
@@ -87,7 +101,7 @@ def test_gate_rejects_no_gain(monkeypatch):
                                                      disagreements={"A": ("high", "low")}),
     )
     d = improve.consider(candidate, incumbent, ["A", "B", "C"])
-    assert not d.promoted and "no held-out gain" in d.reason
+    assert not d.promoted and "no held-out reward gain" in d.reason
 
 
 def test_gate_promotes_a_clean_improvement(monkeypatch):
@@ -154,3 +168,42 @@ def test_experiment_promotion_cannot_activate_inbox_policy(tmp_path, monkeypatch
     candidate.save()
     assert improve.load_version(candidate.version).experiment
     assert improve.latest_promoted().version == improve.baseline().version
+
+
+def test_bandit_uses_dev_rewards_and_sends_only_the_winner_to_holdout(tmp_path, monkeypatch):
+    incumbent = _version("DEMO-1.0", policy="fault")
+    strategies = list(improve._STRATEGIES.values())
+    evaluated = []
+    proposed = []
+
+    def propose(current, failures, muse, *, focus):
+        assert current is incumbent and failures == {"dev": ("high", "low")}
+        proposed.append(focus)
+        return _version("DEMO-1.1", policy=focus)
+
+    def score(version, ids, scope):
+        evaluated.append((version.policy, ids))
+        if version is incumbent:
+            return improve.Score(total=1, disagreements={ids[0]: ("high", "low")})
+        return improve.Score(agreed=int(version.policy == strategies[1]), total=1)
+
+    monkeypatch.setattr(improve, "RULES_DIR", tmp_path)
+    monkeypatch.setattr(improve, "load_split", lambda: {"dev": ["dev"], "held_out": ["holdout"]})
+    monkeypatch.setattr(improve, "propose", propose)
+    monkeypatch.setattr(improve, "score", score)
+    result = improve.cycle(object(), incumbent=incumbent, rounds=4)
+
+    assert proposed == [*strategies, strategies[1]]
+    assert evaluated[-2:] == [("fault", ["holdout"]), (strategies[1], ["holdout"])]
+    assert all(ids == ["dev"] for _, ids in evaluated[:-2])
+    assert result["decision"].promoted
+
+
+def test_gate_vetoes_a_critical_miss_even_when_reward_improves(monkeypatch):
+    incumbent, candidate = _version("DEMO-1.0"), _version("DEMO-1.1")
+    monkeypatch.setattr(improve, "score", lambda version, ids, scope: improve.Score(
+        agreed=int(version is candidate), total=2, critical_misses=1,
+        disagreements={"critical": ("critical", "low")},
+    ))
+    result = improve.consider(candidate, incumbent, ["critical", "other"])
+    assert not result.promoted and "Critical" in result.reason

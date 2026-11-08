@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 import os
 import random
 import re
@@ -230,6 +231,7 @@ class Score:
     agreed: int = 0
     total: int = 0
     disagreements: dict[str, tuple[str, str]] = field(default_factory=dict)  # id -> (truth, model)
+    critical_misses: int = 0
     input_tokens: int = 0
     elapsed_ms: int = 0
     error: str = ""
@@ -242,7 +244,8 @@ class Score:
         if self.error:
             return f"unavailable: {self.error}"
         return (
-            f"agreement {self.agreement:.0%} ({self.agreed}/{self.total}), "
+            f"verified reward {self.agreed}/{self.total} ({self.agreement:.0%}), "
+            f"{self.critical_misses} Critical misses, "
             f"{self.input_tokens:,} input tokens, {self.elapsed_ms} ms"
         )
 
@@ -260,18 +263,21 @@ def score(version: Version, ids: list[str], scope: str = "packet") -> Score:
     if not result.get("available"):
         return Score(error=result.get("message", "Snap unavailable"))
 
-    rows = {row["id"]: row.get("route") for row in result["rows"] if row["id"] in expected}
+    rows = {row["id"]: row for row in result["rows"]}
     s = Score(
         total=len(expected),
         input_tokens=result["request"].get("input_tokens", 0),
         elapsed_ms=result["request"].get("elapsed_ms", 0),
     )
     for identifier, want in expected.items():
-        got = rows.get(identifier)
-        if got == want:
+        row = rows.get(identifier, {})
+        got = row.get("route", "missing")
+        if got == want and row.get("agrees_with_local") is True:
             s.agreed += 1
         else:
-            s.disagreements[identifier] = (want, got or "missing")
+            s.disagreements[identifier] = (want, f"{got} with wrong citation" if got == want else got)
+            if want == "critical" and got != want:
+                s.critical_misses += 1
     return s
 
 
@@ -303,7 +309,7 @@ def _extract_json(text: str) -> dict | None:
     return None
 
 
-def propose(current: Version, failures: dict[str, tuple[str, str]], muse=None) -> Version | None:
+def propose(current: Version, failures: dict[str, tuple[str, str]], muse=None, *, focus="") -> Version | None:
     """Ask Muse to revise the two prompt fields Snap uses for routing."""
     muse = muse or MuseProposer()
     if not muse.available:
@@ -317,6 +323,8 @@ def propose(current: Version, failures: dict[str, tuple[str, str]], muse=None) -
     prompt = (f"CURRENT POLICY:\n{current.policy}\n\n"
         f"CURRENT PRIORITY QUESTION INSTRUCTIONS:\n{current.routing_instructions}\n\n"
         f"DEVELOPMENT ERROR COUNTS:\n{lines}\n")
+    if focus:
+        prompt += f"REVISION STRATEGY:\n{focus}\n"
     for _ in range(2):
         reply = muse.complete(PROPOSER_SYSTEM, prompt)
         if not reply:
@@ -415,7 +423,10 @@ def consider(candidate: Version, incumbent: Version, held_out: list[str], scope:
         i for i in held_out
         if i not in before.disagreements and i in after.disagreements
     ]
-    if regressions:
+    if after.critical_misses:
+        reason = f"rejected: missed {after.critical_misses} signed Critical referral(s)"
+        ok = False
+    elif regressions:
         reason = (
             f"rejected: broke {len(regressions)} referral(s) that previously routed "
             f"correctly ({', '.join(regressions[:4])})"
@@ -423,12 +434,12 @@ def consider(candidate: Version, incumbent: Version, held_out: list[str], scope:
         ok = False
     elif after.agreed <= before.agreed:
         reason = (
-            f"rejected: no held-out gain ({before.agreement:.0%} -> {after.agreement:.0%})"
+            f"rejected: no held-out reward gain ({before.agreement:.0%} -> {after.agreement:.0%})"
         )
         ok = False
     else:
         reason = (
-            f"accepted: held-out agreement {before.agreement:.0%} -> {after.agreement:.0%} "
+            f"accepted: held-out reward {before.agreement:.0%} -> {after.agreement:.0%} "
             f"with no regressions"
         )
         ok = True
@@ -437,10 +448,30 @@ def consider(candidate: Version, incumbent: Version, held_out: list[str], scope:
     return Decision(candidate, before, after, ok, reason)
 
 
-def cycle(muse=None, scope: str = "packet", incumbent: Version | None = None) -> dict:
-    """One full round: find dev failures, propose, gate on held-out."""
+_STRATEGIES = {
+    "signed-evidence": "Lead with how to find the signed routing instruction in the full packet.",
+    "missing-evidence": "Lead with when to require manual review, then explain how to honor valid signed instructions.",
+    "citation-first": "Tie every priority to its source. Make sure the source belongs to this case and supports the lane.",
+}
+
+
+def _choose_strategy(history):
+    """UCB1 balances average reward with exploring less-tested strategies."""
+    for strategy, rewards in history.items():
+        if not rewards:
+            return strategy
+    trials = sum(map(len, history.values()))
+    return max(history, key=lambda name: sum(history[name]) / len(history[name])
+               + math.sqrt(2 * math.log(trials) / len(history[name])))
+
+
+def cycle(muse=None, scope: str = "packet", incumbent: Version | None = None, rounds: int = 1) -> dict:
+    """Search on dev with verifiable rewards, then test one winner on held-out."""
+    if not 1 <= rounds <= 8:
+        raise ValueError("Choose 1 to 8 development rounds.")
     split = load_split()
     incumbent = incumbent or latest_promoted()
+    muse = muse or MuseProposer()
 
     dev = score(incumbent, split["dev"], scope)
     if dev.error:
@@ -455,20 +486,47 @@ def cycle(muse=None, scope: str = "packet", incumbent: Version | None = None) ->
             "held_out": held,
         }
 
-    candidate = propose(incumbent, dev.disagreements, muse)
-    if candidate is None:
+    history = {strategy: [] for strategy in _STRATEGIES}
+    trials = []
+    winner = None
+    best = dev.agreed
+    winning_strategy = None
+    for _ in range(rounds):
+        strategy = _choose_strategy(history)
+        candidate = propose(incumbent, dev.disagreements, muse, focus=_STRATEGIES[strategy])
+        trial = {"strategy": strategy}
+        trials.append(trial)
+        if candidate is None or mentions_a_referral_id(candidate):
+            history[strategy].append(0)
+            trial["status"] = "Invalid or case-specific proposal"
+            continue
+        outcome = score(candidate, split["dev"], scope)
+        if outcome.error:
+            return {"ok": False, "message": outcome.error, "dev": dev, "trials": trials}
+        history[strategy].append(0 if outcome.critical_misses else outcome.agreement)
+        trial.update(reward=[outcome.agreed, outcome.total], critical_misses=outcome.critical_misses,
+                     policy=candidate.policy, routing_instructions=candidate.routing_instructions)
+        if not outcome.critical_misses and outcome.agreed > best:
+            winner, best, winning_strategy = candidate, outcome.agreed, strategy
+
+    if winner is None:
         return {
             "ok": False,
-            "message": getattr(muse, "last_error", "") or "Muse did not return a valid policy revision.",
+            "message": getattr(muse, "last_error", "") or "No proposal earned a development reward gain without Critical misses.",
             "dev": dev,
+            "trials": trials,
         }
 
-    decision = consider(candidate, incumbent, split["held_out"], scope)
-    candidate.gate = {
+    decision = consider(winner, incumbent, split["held_out"], scope)
+    winner.gate = {
         "scope": scope,
+        "reward": "1 if priority and source agree with the verified fax, otherwise 0",
         "reason": decision.reason,
+        "dev_before": [dev.agreed, dev.total],
+        "winning_strategy": winning_strategy,
+        "development_trials": trials,
         "held_out_before": [decision.before.agreed, decision.before.total],
         "held_out_after": [decision.after.agreed, decision.after.total],
     }
-    candidate.save()
-    return {"ok": True, "incumbent": incumbent.version, "dev": dev, "decision": decision}
+    winner.save()
+    return {"ok": True, "incumbent": incumbent.version, "dev": dev, "trials": trials, "decision": decision}

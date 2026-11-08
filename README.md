@@ -44,21 +44,24 @@ The evaluation script makes live calls with only bundled fictional cases.
 
 ```bash
 .venv/bin/python selfimprove.py split
-.venv/bin/python selfimprove.py cycle --from-ablation
+.venv/bin/python selfimprove.py cycle --from-ablation --rounds 5
 .venv/bin/python selfimprove.py ledger
 ```
 
 The experiment injects a cover-only routing fault while still supplying the
 full fax packets. Muse sees aggregate errors from 35 development referrals and
-proposes new wording for Snap's routing policy and priority question. Snap
-scores both versions on 15 frozen held-out referrals. The gate compares the
-first-pass decisions with the signed source and requires a gain with zero
-regressions. The scheduling rules stay fixed.
+proposes new wording for Snap's routing policy and priority question. The
+reward is one point when the priority and source both match the verified fax.
+A bandit tries three revision strategies and balances exploration with the
+average reward from previous development rounds. Snap tests the incumbent and
+the selected revision on 15 frozen held-out referrals. The gate requires a
+reward gain with zero regressions and zero missed Critical referrals.
 
-The ledger records the policy text and held-out counts for every evaluated
-proposal. An experiment can earn promotion within its own trial. Run `cycle`
-without `--from-ablation` to test revisions to the active inbox policy.
+The saved decision records each development trial and the winner's held-out
+scores. An experiment can earn promotion within its own trial. Run `cycle`
+without `--from-ablation` to test revisions to the active inbox policy. This
+loop learns which prompt strategies to try. Muse and Snap weights are fixed.
 
-In the recorded live trial, the faulty policy scored 8/15 on the held-out
-split and the Muse revision scored 15/15 with zero regressions. The shipped
-policy also scored 15/15. [Saved decision](rules/referral/DEMO-1.0-cover-fault.4.json)
+In the recorded five-round live trial, the cover-only fault earned 8/15 on
+the held-out split. The selected Muse revision earned 15/15 with zero missed
+Critical referrals or regressions. [Saved reward trace](rules/referral/DEMO-1.0-cover-fault.6.json)

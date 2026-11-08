@@ -1,0 +1,110 @@
+{
+  "version": "DEMO-1.0-cover-fault.6",
+  "parent": "DEMO-1.0-cover-fault.5",
+  "notes": "Revised to enforce signed evidence and stop cover-based downgrades that missed critical cases.",
+  "promoted": true,
+  "policy": "Send to needs_review when signed routing evidence is missing, illegible, ambiguous, or conflicting. Otherwise honor the legible signed routing instruction as authoritative, including scanned pages and addenda. A cover request, lab result, or county never sets clinical priority. Route validated critical to clinician escalation. Follow locked county scheduling rules and use only the five locked lane labels.",
+  "rules_book": {
+    "name": "Sample specialist intake rules",
+    "version": "DEMO-1.0",
+    "specialist": "Bay Neurology (fictional)",
+    "accepted_counties": [
+      "San Francisco",
+      "San Mateo"
+    ],
+    "rules": [
+      {
+        "id": "AREA-01",
+        "title": "In-area referral",
+        "text": "Use the documented patient county of residence on page 1. San Francisco and San Mateo are in this specialist's demo scheduling area."
+      },
+      {
+        "id": "AREA-02",
+        "title": "Outside the scheduling area",
+        "text": "Send other counties to intake coordination for help finding the appropriate service. Do not book in this specialist's calendar."
+      },
+      {
+        "id": "AREA-03",
+        "title": "County not documented",
+        "text": "Ask intake to verify the patient's county. A sender address, fax number or area code cannot establish residency."
+      },
+      {
+        "id": "SAFE-01",
+        "title": "Critical escalation",
+        "text": "Send a signed critical flag to the clinician queue regardless of scheduling eligibility. The clinician queue is separate from appointment booking."
+      }
+    ]
+  },
+  "routing_instructions": "Require needs_review when no legible signed priority exists, or when signed instructions are unclear or conflict. Otherwise honor the legible signed priority from any page including scanned addenda as authoritative. Ignore cover requested priority, lab results, and county for setting clinical priority. Route validated critical to clinician escalation. Choose only from the five locked lanes.",
+  "experiment": true,
+  "gate": {
+    "scope": "packet",
+    "reward": "1 if priority and source agree with the verified fax, otherwise 0",
+    "reason": "accepted: held-out reward 53% -> 100% with no regressions",
+    "dev_before": [
+      8,
+      35
+    ],
+    "winning_strategy": "missing-evidence",
+    "development_trials": [
+      {
+        "strategy": "signed-evidence",
+        "reward": [
+          34,
+          35
+        ],
+        "critical_misses": 0,
+        "policy": "Review the full packet to locate the legible signed routing instruction, which is authoritative including when scanned; if missing or unclear route to needs_review. Assign clinical priority only from that instruction, with critical routed to clinician escalation. A cover request, lab result, or county never sets clinical priority. Apply locked county scheduling rules using only the five locked lane labels.",
+        "routing_instructions": "Search all pages including scanned addenda for the legible signed routing instruction and use it as the sole source for clinical priority. If legible and signed, apply its priority with critical going to clinician escalation. If missing, illegible, unsigned, or unclear, choose needs_review. Never use cover requested priority, lab results, or county to set priority."
+      },
+      {
+        "strategy": "missing-evidence",
+        "reward": [
+          35,
+          35
+        ],
+        "critical_misses": 0,
+        "policy": "Send to needs_review when signed routing evidence is missing, illegible, ambiguous, or conflicting. Otherwise honor the legible signed routing instruction as authoritative, including scanned pages and addenda. A cover request, lab result, or county never sets clinical priority. Route validated critical to clinician escalation. Follow locked county scheduling rules and use only the five locked lane labels.",
+        "routing_instructions": "Require needs_review when no legible signed priority exists, or when signed instructions are unclear or conflict. Otherwise honor the legible signed priority from any page including scanned addenda as authoritative. Ignore cover requested priority, lab results, and county for setting clinical priority. Route validated critical to clinician escalation. Choose only from the five locked lanes."
+      },
+      {
+        "strategy": "citation-first",
+        "reward": [
+          35,
+          35
+        ],
+        "critical_misses": 0,
+        "policy": "Clinical priority comes only from a legible signed routing instruction that belongs to this case and supports the lane, including when scanned; cover request, lab result, or county never sets priority; missing or unclear signed evidence goes to needs_review; critical goes to clinician escalation; county rules affect scheduling only; lanes are critical, high, medium, low, needs_review.",
+        "routing_instructions": "Determine priority only from legible signed routing instruction for this patient and reason: 1) locate signed pages including scanned addenda, ignore cover sheet requests, lab results, and county notes for priority; 2) verify identity match, legibility, signature, and that finding supports lane; 3) assign critical, high, medium, or low only when source ties directly; 4) if missing, unclear, unsigned, mismatched, or unsupported choose needs_review; 5) route critical to clinician escalation."
+      },
+      {
+        "strategy": "missing-evidence",
+        "reward": [
+          35,
+          35
+        ],
+        "critical_misses": 0,
+        "policy": "Require needs_review when legible signed routing instruction is missing, unsigned, illegible, or ambiguous. Honor a legible signed instruction as authoritative, including scanned addenda. Escalate signed critical priority to clinician review. A cover request, lab result, or county never sets clinical priority. Apply locked county scheduling rules using only the five locked lane labels.",
+        "routing_instructions": "Choose needs_review first if signed routing evidence is missing, unsigned, illegible, or unclear. Otherwise honor the legible signed instruction as authoritative, including scanned pages, and assign its stated clinical priority. Route signed critical to clinician escalation. Never use cover request, lab result, or county to set priority; routine cover requests remain low only if signed instruction confirms it."
+      },
+      {
+        "strategy": "citation-first",
+        "reward": [
+          32,
+          35
+        ],
+        "critical_misses": 0,
+        "policy": "Clinical priority is set only by a legible signed routing instruction that belongs to this case and supports the lane, including when scanned. A cover request, lab result, or county never sets clinical priority. Missing, illegible, unsigned, mismatched, or unclear signed evidence goes to needs_review. Critical goes to clinician escalation. Follow locked county scheduling rules and use only the five locked lane labels.",
+        "routing_instructions": "Review all pages including any scanned addendum. Tie every priority to its source: accept only a legible signed clinical instruction that belongs to this case and supports the lane. Do not use cover request, lab result, or county to set priority. If signed evidence is missing, illegible, unsigned, mismatched, or unclear, choose needs_review. Route verified critical to clinician escalation."
+      }
+    ],
+    "held_out_before": [
+      8,
+      15
+    ],
+    "held_out_after": [
+      15,
+      15
+    ]
+  }
+}

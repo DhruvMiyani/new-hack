@@ -2,7 +2,8 @@
 
     python selfimprove.py split      show the frozen dev / held-out split
     python selfimprove.py score      first-pass agreement of the active routing policy
-    python selfimprove.py cycle      one round: propose with Muse, gate on held-out
+    python selfimprove.py cycle      revise with Muse and gate on held-out
+    python selfimprove.py cycle --from-ablation --rounds 5   run the bandit experiment
     python selfimprove.py ledger     every version and whether it was promoted
 
 Muse proposes the change, SubQ re-scores, and arithmetic decides. Ground truth
@@ -20,7 +21,7 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env")
 
-from blindspot import improve, referrals  # noqa: E402
+from blindspot import improve  # noqa: E402
 from blindspot.improve import MuseProposer  # noqa: E402
 from blindspot.providers import SubQSnap  # noqa: E402
 
@@ -74,7 +75,14 @@ def cmd_cycle(args) -> int:
         print(f"starting from {incumbent.version}")
         print(f"  {incumbent.notes}\n")
 
-    result = improve.cycle(muse, scope=args.scope, incumbent=incumbent)
+    result = improve.cycle(muse, scope=args.scope, incumbent=incumbent, rounds=args.rounds)
+    for index, trial in enumerate(result.get("trials", []), 1):
+        if "reward" in trial:
+            agreed, total = trial["reward"]
+            detail = f"{agreed}/{total} reward, {trial['critical_misses']} Critical misses"
+        else:
+            detail = trial.get("status", "evaluation unavailable")
+        print(f"  dev round {index} · {trial['strategy']} · {detail}")
     if not result["ok"]:
         print(result["message"])
         if "dev" in result:
@@ -125,10 +133,12 @@ def main() -> int:
     s.add_argument("--scope", default="packet", choices=["packet", "letter"])
     s.set_defaults(fn=cmd_score)
 
-    c = sub.add_parser("cycle", help="one improvement round, gated on held-out")
+    c = sub.add_parser("cycle", help="revise the policy and gate the winner on held-out")
     c.add_argument("--scope", default="packet", choices=["packet", "letter"])
     c.add_argument("--from-ablation", action="store_true",
                    help="try a deliberately faulty cover-only policy in an isolated experiment")
+    c.add_argument("--rounds", type=int, choices=range(1, 9), default=1, metavar="N",
+                   help="number of development trials (1–8). Multiple trials use the reward bandit")
     c.set_defaults(fn=cmd_cycle)
 
     sub.add_parser("ledger", help="every version and whether it was promoted").set_defaults(fn=cmd_ledger)
