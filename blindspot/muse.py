@@ -33,9 +33,9 @@ def available():
     return all(_credentials())
 
 
-def _extract(result):
+def _response_text(result):
     if not isinstance(result, dict) or result.get("status") != "completed":
-        raise ValueError("Muse did not complete the PDF read.")
+        raise ValueError("Muse did not complete the response.")
     chunks = [
         part["text"]
         for item in result.get("output", [])
@@ -43,7 +43,11 @@ def _extract(result):
         for part in item.get("content", [])
         if isinstance(part, dict) and part.get("type") == "output_text" and isinstance(part.get("text"), str)
     ]
-    value = json.loads("".join(chunks))
+    return "".join(chunks)
+
+
+def _extract(result):
+    value = json.loads(_response_text(result))
     if not isinstance(value, dict) or set(value) != {"priority", "page", "quote"}:
         raise ValueError("Muse returned an invalid evidence record.")
     priority, page, quote = (value[key] for key in ("priority", "page", "quote"))

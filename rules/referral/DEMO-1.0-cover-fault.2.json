@@ -1,0 +1,41 @@
+{
+  "version": "DEMO-1.0-cover-fault.2",
+  "parent": "DEMO-1.0",
+  "notes": "Injected fault for a repair experiment: routing uses the cover instead of the signed report.",
+  "promoted": false,
+  "policy": "Fictional test policy. Route using only the priority requested on page 1.",
+  "rules_book": {
+    "name": "Sample specialist intake rules",
+    "version": "DEMO-1.0",
+    "specialist": "Bay Neurology (fictional)",
+    "accepted_counties": [
+      "San Francisco",
+      "San Mateo"
+    ],
+    "rules": [
+      {
+        "id": "AREA-01",
+        "title": "In-area referral",
+        "text": "Use the documented patient county of residence on page 1. San Francisco and San Mateo are in this specialist's demo scheduling area."
+      },
+      {
+        "id": "AREA-02",
+        "title": "Outside the scheduling area",
+        "text": "Send other counties to intake coordination for help finding the appropriate service. Do not book in this specialist's calendar."
+      },
+      {
+        "id": "AREA-03",
+        "title": "County not documented",
+        "text": "Ask intake to verify the patient's county. A sender address, fax number or area code cannot establish residency."
+      },
+      {
+        "id": "SAFE-01",
+        "title": "Critical escalation",
+        "text": "Send a signed critical flag to the clinician queue regardless of scheduling eligibility. The clinician queue is separate from appointment booking."
+      }
+    ]
+  },
+  "routing_instructions": "Ignore all pages after page 1 and any scanned addendum. Use the cover's requested priority. A routine request is low. If absent, choose needs_review.",
+  "experiment": true,
+  "gate": null
+}

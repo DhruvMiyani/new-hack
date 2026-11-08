@@ -1,0 +1,33 @@
+{
+  "version": "DEMO-1.0-ablated-area-01",
+  "parent": "DEMO-1.0",
+  "notes": "Ablation: rule AREA-01 removed on purpose, to give the loop a real failure to repair.",
+  "promoted": false,
+  "policy": "Fictional clinic protocol. A signed reviewer routing instruction overrides intake priority. A signed CRITICAL instruction goes to critical clinician review, not appointment booking. Signed HIGH, MEDIUM, or LOW instructions go to those queues. Without a legible signed instruction for this case, choose needs_review. Never infer urgency from anatomy, lab values, a lab order, or an unsigned referral. A lab order is not a completed result. Do not give medical advice.",
+  "rules_book": {
+    "name": "Sample specialist intake rules",
+    "version": "DEMO-1.0-ablated-area-01",
+    "specialist": "Bay Neurology (fictional)",
+    "accepted_counties": [
+      "San Francisco",
+      "San Mateo"
+    ],
+    "rules": [
+      {
+        "id": "AREA-02",
+        "title": "Outside the scheduling area",
+        "text": "Send other counties to intake coordination for help finding the appropriate service. Do not book in this specialist's calendar."
+      },
+      {
+        "id": "AREA-03",
+        "title": "County not documented",
+        "text": "Ask intake to verify the patient's county. A sender address, fax number or area code cannot establish residency."
+      },
+      {
+        "id": "SAFE-01",
+        "title": "Critical escalation",
+        "text": "Send a signed critical flag to the clinician queue regardless of scheduling eligibility. The clinician queue is separate from appointment booking."
+      }
+    ]
+  }
+}
